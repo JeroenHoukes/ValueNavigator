@@ -75,10 +75,20 @@ export function ScenarioComparisonChart({ scenarios }: ScenarioComparisonChartPr
                 borderRadius: "8px"
               }}
               labelStyle={{ color: "#e2e8f0" }}
-              formatter={(value: number, name: string) => [
-                name === "npv" ? `€${value.toFixed(1)}M` : `${value.toFixed(1)}%`,
-                name === "npv" ? "NPV (€M)" : "IRR (%)"
-              ]}
+              formatter={(value: unknown, name: string) => {
+                const numeric =
+                  typeof value === "number"
+                    ? value
+                    : value != null
+                    ? Number(value)
+                    : 0;
+                return [
+                  name === "npv"
+                    ? `€${numeric.toFixed(1)}M`
+                    : `${numeric.toFixed(1)}%`,
+                  name === "npv" ? "NPV (€M)" : "IRR (%)"
+                ];
+              }}
               labelFormatter={(label) => label}
             />
             <Legend
