@@ -1,0 +1,75 @@
+{
+    "sqltools.connections": [
+        {
+            "connectionTimeout": 15,
+            "mssqlOptions": {
+                "appName": "SQLTools",
+                "useUTC": true,
+                "encrypt": true,
+                "trustServerCertificate": false
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "leefserver.database.windows.net",
+            "port": 1433,
+            "askForPassword": true,
+            "driver": "MSSQL",
+            "name": "ValueNavigator",
+            "database": "ValueNavigator",
+            "username": "jeroen.houkes@leef-consultancy.com"
+        },
+        {
+            "connectionTimeout": 15,
+            "mssqlOptions": {
+                "appName": "SQLTools",
+                "useUTC": true,
+                "encrypt": true,
+                "trustServerCertificate": false
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "leefzerver.database.windows.net",
+            "port": 1433,
+            "driver": "MSSQL",
+            "name": "ValueNavigatorPROD",
+            "database": "ValueNavigator",
+            "username": "leefadmin"
+        },
+        {
+            "connectionTimeout": 15,
+            "mssqlOptions": {
+                "appName": "SQLTools",
+                "useUTC": true,
+                "encrypt": true,
+                "trustServerCertificate": false
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "leefserver.database.windows.net",
+            "port": 1433,
+            "askForPassword": true,
+            "driver": "MSSQL",
+            "name": "VN",
+            "database": "ValueNavigator",
+            "username": "datauser"
+        },
+        {
+            "connectionTimeout": 15,
+            "mssqlOptions": {
+                "appName": "SQLTools",
+                "useUTC": true,
+                "encrypt": true,
+                "trustServerCertificate": false
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "leefserver.database.windows.net",
+            "port": 1433,
+            "driver": "MSSQL",
+            "name": "VN PROD",
+            "database": "ValueNavigator",
+            "username": "aitest",
+            "password": "myfuRRyfr1end"
+        }
+    ]
+}

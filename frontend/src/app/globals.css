@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: var(--app-bg, #020617);
+  @apply text-slate-50 antialiased;
+}
+
+a {
+  @apply text-brand hover:text-brand-light;
+}
+

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/jeroenhoukes/Projects/ValueNavigator -maxdepth 2 -not -path */node_modules* -not -path */.next*)"
+    ]
+  }
+}
