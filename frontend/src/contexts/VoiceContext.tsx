@@ -12,8 +12,8 @@ import {
 
 const SpeechRecognition =
   typeof window !== "undefined" &&
-  ((window as unknown as { SpeechRecognition?: typeof globalThis.SpeechRecognition }).SpeechRecognition ||
-    (window as unknown as { webkitSpeechRecognition?: typeof globalThis.SpeechRecognition }).webkitSpeechRecognition);
+  ((window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition ||
+    (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition);
 
 export interface VoiceContextValue {
   isListening: boolean;
@@ -46,7 +46,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(false);
-  const recognitionRef = useRef<InstanceType<NonNullable<typeof SpeechRecognition>> | null>(null);
+  const recognitionRef = useRef<any>(null);
   const interimRef = useRef("");
 
   useEffect(() => {
@@ -74,7 +74,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startListening = useCallback(() => {
-    const SpeechRecognitionAPI = typeof window !== "undefined" && ((window as unknown as { SpeechRecognition?: typeof globalThis.SpeechRecognition }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition?: typeof globalThis.SpeechRecognition }).webkitSpeechRecognition);
+    const SpeechRecognitionAPI =
+      typeof window !== "undefined" &&
+      ((window as unknown as { SpeechRecognition?: any }).SpeechRecognition ||
+        (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition);
     if (!SpeechRecognitionAPI) {
       setError("Voice input is not supported in this browser. Try Chrome or Edge.");
       return;
@@ -86,7 +89,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       rec.continuous = true;
       rec.interimResults = true;
       rec.lang = "en-GB";
-      rec.onresult = (event: globalThis.SpeechRecognitionEvent) => {
+      rec.onresult = (event: any) => {
         let final = "";
         let interim = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -113,7 +116,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
           }
         }
       };
-      rec.onerror = (event: globalThis.SpeechRecognitionErrorEvent) => {
+      rec.onerror = (event: any) => {
         if (event.error === "aborted" || event.error === "no-speech") return;
         setError(event.error === "not-allowed" ? "Microphone access denied." : `Voice error: ${event.error}`);
       };

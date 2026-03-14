@@ -1,10 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ScenarioBuilderDnD } from "@/components/ScenarioBuilderDnD";
 
-export default function ScenarioBuilderPage() {
+function ScenarioBuilderContent() {
   const searchParams = useSearchParams();
   const openScenarioId = searchParams.get("open");
 
@@ -29,5 +30,13 @@ export default function ScenarioBuilderPage() {
       </div>
       <ScenarioBuilderDnD openScenarioId={openScenarioId} />
     </div>
+  );
+}
+
+export default function ScenarioBuilderPage() {
+  return (
+    <Suspense fallback={<div className="text-slate-400">Loading...</div>}>
+      <ScenarioBuilderContent />
+    </Suspense>
   );
 }

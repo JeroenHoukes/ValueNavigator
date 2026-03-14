@@ -75,20 +75,21 @@ export function ScenarioComparisonChart({ scenarios }: ScenarioComparisonChartPr
                 borderRadius: "8px"
               }}
               labelStyle={{ color: "#e2e8f0" }}
-              formatter={(value: unknown, name: string) => {
+              formatter={((value: unknown, name?: string) => {
                 const numeric =
                   typeof value === "number"
                     ? value
                     : value != null
                     ? Number(value)
                     : 0;
+                const n = String(name ?? "");
                 return [
-                  name === "npv"
+                  n === "npv"
                     ? `€${numeric.toFixed(1)}M`
                     : `${numeric.toFixed(1)}%`,
-                  name === "npv" ? "NPV (€M)" : "IRR (%)"
+                  n === "npv" ? "NPV (€M)" : "IRR (%)"
                 ];
-              }}
+              }) as React.ComponentProps<typeof Tooltip>["formatter"]}
               labelFormatter={(label) => label}
             />
             <Legend

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   type JourneyStep,
@@ -14,7 +14,7 @@ import {
 } from "@/lib/journeyConfig";
 import { useAppActions } from "@/contexts/AppActionsContext";
 
-export default function CustomerJourneyPage() {
+function CustomerJourneyContent() {
   const searchParams = useSearchParams();
   const openJourneyId = searchParams.get("open");
   const [journeyName, setJourneyName] = useState("My customer journey");
@@ -467,5 +467,13 @@ export default function CustomerJourneyPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CustomerJourneyPage() {
+  return (
+    <Suspense fallback={<div className="text-slate-400">Loading...</div>}>
+      <CustomerJourneyContent />
+    </Suspense>
   );
 }

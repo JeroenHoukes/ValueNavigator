@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { Providers } from "./Providers";
 
 export const metadata = {
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );
