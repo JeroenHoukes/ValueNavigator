@@ -4,9 +4,10 @@ import type { ReactNode } from "react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MsalProvider } from "@azure/msal-react";
+import { MsalProvider, useMsal } from "@azure/msal-react";
 import { PublicClientApplication } from "@azure/msal-browser";
 import { msalConfig } from "../config/msalConfig";
+import { AuthGuard } from "@/components/AuthGuard";
 import { BackgroundColorPicker } from "@/components/BackgroundColorPicker";
 import { AIAssistantButton, AIAssistantPanel } from "@/components/AIAssistant";
 import { AppActionsProvider } from "@/contexts/AppActionsContext";
@@ -53,11 +54,14 @@ function isOverviewActive(pathname: string) {
   );
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+function HeaderAndMain({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { accounts, instance } = useMsal();
   const [aiOpen, setAiOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<"create" | "overview" | null>(null);
   const navRef = useRef<HTMLElement>(null);
+  const user = accounts[0];
+  const handleLogout = () => instance.logoutRedirect().catch(console.error);
 
   useEffect(() => {
     if (openMenu === null) return;
@@ -71,11 +75,8 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [openMenu]);
 
   return (
-    <MsalProvider instance={pca}>
-      <AppActionsProvider>
-        <VoiceProvider>
-        <div className="min-h-screen flex flex-col">
-        <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-4 flex items-center justify-between gap-4 shrink-0">
+    <div className="min-h-screen flex flex-col">
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-4 flex items-center justify-between gap-4 shrink-0">
           <Link href="/" className="flex items-center gap-2 hover:opacity-90">
             <span className="h-8 w-8 rounded-lg bg-brand flex items-center justify-center text-white font-bold">
               VN
@@ -187,6 +188,18 @@ export function Providers({ children }: { children: ReactNode }) {
             </div>
           </nav>
           <div className="flex items-center gap-2">
+            {user && (
+              <span className="text-xs text-slate-400 max-w-[120px] truncate" title={user.username}>
+                {user.name ?? user.username}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-800/70"
+            >
+              Sign out
+            </button>
             <VoiceInputButton />
             <AIAssistantButton open={aiOpen} setOpen={setAiOpen} />
             <BackgroundColorPicker />
@@ -200,9 +213,26 @@ export function Providers({ children }: { children: ReactNode }) {
             {children}
           </main>
         </div>
-        </div>
-        </VoiceProvider>
-      </AppActionsProvider>
+    </div>
+  );
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <MsalProvider instance={pca}>
+      <AuthGuard>
+        <AppContent>{children}</AppContent>
+      </AuthGuard>
     </MsalProvider>
+  );
+}
+
+function AppContent({ children }: { children: ReactNode }) {
+  return (
+    <AppActionsProvider>
+      <VoiceProvider>
+        <HeaderAndMain>{children}</HeaderAndMain>
+      </VoiceProvider>
+    </AppActionsProvider>
   );
 }

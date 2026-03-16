@@ -7,13 +7,16 @@ const tenantId = process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID ?? "";
 export const apiScope =
   process.env.NEXT_PUBLIC_API_SCOPE ?? "api://<YOUR_API_CLIENT_ID>/.default";
 
+/** Scope for Azure SQL Database (used to get token for DB access as the signed-in user). */
+export const sqlScope = "https://database.windows.net/.default";
+
 export const msalConfig: Configuration = {
   auth: {
     clientId,
     authority: `https://login.microsoftonline.com/${tenantId}`,
     redirectUri:
       typeof window === "undefined"
-        ? "http://localhost:3000"
+        ? (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
         : window.location.origin
   },
   cache: {

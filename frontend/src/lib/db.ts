@@ -45,3 +45,30 @@ export async function getDb(): Promise<sql.ConnectionPool> {
   }
 }
 
+const server = process.env.AZURE_SQL_SERVER;
+const database = process.env.AZURE_SQL_DATABASE;
+
+/**
+ * Connect to Azure SQL using the signed-in user's Entra ID access token.
+ * The database will see the connection as that user (for RLS / per-user data).
+ */
+export async function getDbWithToken(accessToken: string): Promise<sql.ConnectionPool> {
+  if (!server || !database) {
+    throw new Error("Missing AZURE_SQL_SERVER or AZURE_SQL_DATABASE.");
+  }
+  const configWithToken = {
+    server,
+    database,
+    authentication: {
+      type: "azure-active-directory-access-token" as const,
+      options: { token: accessToken }
+    },
+    options: {
+      encrypt: true,
+      trustServerCertificate: false
+    },
+    pool: { max: 1, min: 0, idleTimeoutMillis: 30000 }
+  };
+  return sql.connect(configWithToken as sql.config);
+}
+

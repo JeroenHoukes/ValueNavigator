@@ -10,9 +10,10 @@ type TableAiRow = {
 type Props = {
   columns: string[];
   rows: TableAiRow[];
+  accessToken?: string | null;
 };
 
-export function EditableAiGrid({ columns, rows }: Props) {
+export function EditableAiGrid({ columns, rows, accessToken }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +40,11 @@ export function EditableAiGrid({ columns, rows }: Props) {
     }
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       const res = await fetch("/api/ai-data", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers,
         body: JSON.stringify({ values })
       });
 
