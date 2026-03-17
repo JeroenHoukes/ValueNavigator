@@ -69,3 +69,85 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  const token = getAccessToken(request);
+  try {
+    const pool = token ? await getDbWithToken(token) : await getDb();
+
+    const payload = (await request.json().catch(() => null)) as
+      | {
+          keyColumn?: string;
+          keyValue?: unknown;
+          values?: Record<string, unknown>;
+        }
+      | null;
+
+    const keyColumn = payload?.keyColumn;
+    const keyValue = payload?.keyValue;
+    const values = payload?.values;
+
+    if (!keyColumn || keyValue === undefined || !values || !Object.keys(values).length) {
+      return NextResponse.json(
+        { error: "Missing keyColumn, keyValue, or values for update." },
+        { status: 400 }
+      );
+    }
+
+    const columns = Object.keys(values);
+    let dbRequest = pool.request();
+
+    columns.forEach((col, index) => {
+      const paramName = `p${index}`;
+      dbRequest = dbRequest.input(paramName, (values as Record<string, unknown>)[col]);
+    });
+
+    dbRequest = dbRequest.input("key", keyValue as unknown);
+
+    const setSql = columns.map((c, index) => `[${c}] = @p${index}`).join(", ");
+    const query = `UPDATE table_ai SET ${setSql} WHERE [${keyColumn}] = @key;`;
+
+    await dbRequest.query(query);
+    if (token) await pool.close();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error updating row.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const token = getAccessToken(request);
+  try {
+    const pool = token ? await getDbWithToken(token) : await getDb();
+
+    const payload = (await request.json().catch(() => null)) as
+      | {
+          keyColumn?: string;
+          keyValue?: unknown;
+        }
+      | null;
+
+    const keyColumn = payload?.keyColumn;
+    const keyValue = payload?.keyValue;
+
+    if (!keyColumn || keyValue === undefined) {
+      return NextResponse.json(
+        { error: "Missing keyColumn or keyValue for delete." },
+        { status: 400 }
+      );
+    }
+
+    const dbRequest = pool.request().input("key", keyValue as unknown);
+    const query = `DELETE FROM table_ai WHERE [${keyColumn}] = @key;`;
+
+    await dbRequest.query(query);
+    if (token) await pool.close();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error deleting row.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
