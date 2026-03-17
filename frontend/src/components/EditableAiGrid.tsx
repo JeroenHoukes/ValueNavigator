@@ -13,6 +13,7 @@ type Props = {
   accessToken?: string | null;
   endpoint?: string;
   keyColumn?: string;
+  onDataChanged?: () => void;
 };
 
 export function EditableAiGrid({
@@ -20,7 +21,8 @@ export function EditableAiGrid({
   rows,
   accessToken,
   endpoint = "/api/ai-data",
-  keyColumn
+  keyColumn,
+  onDataChanged
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -69,9 +71,17 @@ export function EditableAiGrid({
         return;
       }
 
-      startTransition(() => {
-        router.refresh();
+      setNewRow((prev) => {
+        const cleared: Record<string, string> = {};
+        for (const col of columns) cleared[col] = "";
+        return cleared;
       });
+
+      if (onDataChanged) {
+        startTransition(() => {
+          onDataChanged();
+        });
+      }
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Unexpected error while adding row."
@@ -147,9 +157,11 @@ export function EditableAiGrid({
 
       setEditingRowIndex(null);
       setEditingRow({});
-      startTransition(() => {
-        router.refresh();
-      });
+      if (onDataChanged) {
+        startTransition(() => {
+          onDataChanged();
+        });
+      }
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Unexpected error while updating row."
@@ -193,9 +205,11 @@ export function EditableAiGrid({
         setEditingRow({});
       }
 
-      startTransition(() => {
-        router.refresh();
-      });
+      if (onDataChanged) {
+        startTransition(() => {
+          onDataChanged();
+        });
+      }
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Unexpected error while deleting row."

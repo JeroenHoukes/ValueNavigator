@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { sqlScope } from "@/config/msalConfig";
@@ -20,7 +20,7 @@ export function AIData2WithAuth() {
     inProgress === InteractionStatus.Login ||
     inProgress === InteractionStatus.Startup;
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     if (!isAuthenticated || !accounts[0]) {
       setLoading(false);
       setAccessToken(null);
@@ -77,6 +77,13 @@ export function AIData2WithAuth() {
       cancelled = true;
     };
   }, [isAuthenticated, accounts, instance]);
+
+  useEffect(() => {
+    const cleanup = loadData();
+    return () => {
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, [loadData]);
 
   const handleLogin = () => {
     instance
@@ -161,6 +168,7 @@ export function AIData2WithAuth() {
         rows={rows}
         accessToken={accessToken}
         endpoint="/api/ai-data2"
+        onDataChanged={loadData}
       />
     </div>
   );

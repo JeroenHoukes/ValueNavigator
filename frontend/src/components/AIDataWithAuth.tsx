@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { sqlScope } from "@/config/msalConfig";
@@ -18,7 +18,7 @@ export function AIDataWithAuth() {
   const isAuthenticated = accounts.length > 0;
   const isLoginInProgress = inProgress === InteractionStatus.Login || inProgress === InteractionStatus.Startup;
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     if (!isAuthenticated || !accounts[0]) {
       setLoading(false);
       setAccessToken(null);
@@ -45,7 +45,10 @@ export function AIDataWithAuth() {
       .then((res) => {
         if (cancelled) return;
         if (!res?.ok) {
-          if (res?.status === 401) setError("Not authorized to access the database. Ensure your Entra ID user is added to the Azure SQL database.");
+          if (res?.status === 401)
+            setError(
+              "Not authorized to access the database. Ensure your Entra ID user is added to the Azure SQL database."
+            );
           else setError(res?.statusText || "Failed to load data.");
           setLoading(false);
           return;
@@ -66,8 +69,17 @@ export function AIDataWithAuth() {
         setLoading(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, accounts, instance]);
+
+  useEffect(() => {
+    const cleanup = loadData();
+    return () => {
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, [loadData]);
 
   const handleLogin = () => {
     instance.loginRedirect({ scopes: ["User.Read", sqlScope] }).catch(console.error);
@@ -147,6 +159,7 @@ export function AIDataWithAuth() {
         rows={rows}
         accessToken={accessToken}
         endpoint="/api/ai-data"
+        onDataChanged={loadData}
       />
     </div>
   );
