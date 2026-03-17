@@ -90,7 +90,7 @@ export function EditableAiGrid({
   }
 
   function startEdit(rowIndex: number) {
-    const row = rows[rowIndex] as Record<string, unknown>;
+    const row = filteredRows[rowIndex] as Record<string, unknown>;
     const initial: Record<string, string> = {};
     for (const col of columns) {
       const value = row[col];
@@ -114,7 +114,7 @@ export function EditableAiGrid({
     if (editingRowIndex === null) return;
     setError(null);
 
-    const row = rows[editingRowIndex] as Record<string, unknown>;
+    const row = filteredRows[editingRowIndex] as Record<string, unknown>;
     const keyValue = row[effectiveKeyColumn];
     if (keyValue === undefined) {
       setError(
@@ -170,8 +170,13 @@ export function EditableAiGrid({
   }
 
   async function deleteRow(rowIndex: number) {
+    // Confirm before deleting
+    // eslint-disable-next-line no-alert
+    if (!window.confirm("Are you sure you want to delete this row?")) {
+      return;
+    }
     setError(null);
-    const row = rows[rowIndex] as Record<string, unknown>;
+    const row = filteredRows[rowIndex] as Record<string, unknown>;
     const keyValue = row[effectiveKeyColumn];
     if (keyValue === undefined) {
       setError(
