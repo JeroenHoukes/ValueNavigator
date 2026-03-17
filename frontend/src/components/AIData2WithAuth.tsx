@@ -78,29 +78,36 @@ export function AIData2WithAuth() {
         if (cancelled) return;
         if (!payload) return;
         const [data, lookups] = payload as [unknown, unknown];
-        setRows(Array.isArray(data) ? data : []);
+
+        let options: { value: string; label: string }[] = [];
         if (Array.isArray(lookups)) {
-          setLookupOptions(
-            lookups
-              .filter(
-                (x): x is { LookupId: unknown; LookupName: unknown } =>
-                  x !== null &&
-                  typeof x === "object" &&
-                  "LookupId" in x &&
-                  "LookupName" in x
-              )
-              .map((x) => ({
-                value: String(
-                  (x as { LookupId: unknown }).LookupId ?? ""
-                ),
-                label: String(
-                  (x as { LookupName: unknown }).LookupName ?? ""
-                )
-              }))
-          );
-        } else {
-          setLookupOptions([]);
+          options = lookups
+            .filter(
+              (x): x is { LookupId: unknown; LookupName: unknown } =>
+                x !== null &&
+                typeof x === "object" &&
+                "LookupId" in x &&
+                "LookupName" in x
+            )
+            .map((x) => ({
+              value: String((x as { LookupId: unknown }).LookupId ?? ""),
+              label: String((x as { LookupName: unknown }).LookupName ?? "")
+            }));
         }
+        setLookupOptions(options);
+
+        const normalizedRows: TableAiRow[] = Array.isArray(data)
+          ? (data as TableAiRow[]).map((row) => ({
+              ...row,
+              // Store the LookupId in the LookupName field so the grid can
+              // use it as the select's value while still showing the label.
+              LookupName:
+                row && "LookupId" in row && row.LookupId != null
+                  ? String(row.LookupId)
+                  : ""
+            }))
+          : [];
+        setRows(normalizedRows);
         setError(null);
         setLoading(false);
       })
@@ -209,7 +216,7 @@ export function AIData2WithAuth() {
         endpoint="/api/ai-data2"
         onDataChanged={loadData}
         selectColumns={{
-          LookupId: { options: lookupOptions }
+          LookupName: { options: lookupOptions }
         }}
         hiddenColumns={["LookupId", "LastUpdate"]}
       />
