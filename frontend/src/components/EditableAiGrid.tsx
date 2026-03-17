@@ -60,7 +60,15 @@ export function EditableAiGrid({
       : columns;
 
   function updateCell(column: string, value: string) {
-    setNewRow((prev) => ({ ...prev, [column]: value }));
+    setNewRow((prev) => {
+      const next = { ...prev, [column]: value };
+      // When editing the visible LookupName column, also set the hidden LookupId
+      // so inserts/updates have the correct foreign key.
+      if (column === "LookupName" && columns.includes("LookupId")) {
+        next.LookupId = value;
+      }
+      return next;
+    });
   }
 
   async function handleSave() {
@@ -126,7 +134,13 @@ export function EditableAiGrid({
   }
 
   function updateEditingCell(column: string, value: string) {
-    setEditingRow((prev) => ({ ...prev, [column]: value }));
+    setEditingRow((prev) => {
+      const next = { ...prev, [column]: value };
+      if (column === "LookupName" && columns.includes("LookupId")) {
+        next.LookupId = value;
+      }
+      return next;
+    });
   }
 
   async function saveEdit() {
