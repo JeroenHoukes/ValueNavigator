@@ -97,15 +97,23 @@ export function AIData2WithAuth() {
         setLookupOptions(options);
 
         const normalizedRows: TableAiRow[] = Array.isArray(data)
-          ? (data as TableAiRow[]).map((row) => ({
-              ...row,
-              // Store the LookupId in the LookupName field so the grid can
-              // use it as the select's value while still showing the label.
-              LookupName:
-                row && "LookupId" in row && row.LookupId != null
-                  ? String(row.LookupId)
-                  : ""
-            }))
+          ? (data as TableAiRow[]).map((row) => {
+              const anyRow = row as Record<string, unknown>;
+              const idValue =
+                (anyRow.LookupId as unknown) ??
+                (anyRow.LookupID as unknown) ??
+                (anyRow.lookupID as unknown);
+
+              return {
+                ...row,
+                // Store the lookup ID in the LookupName field so the grid can
+                // use it as the select's value while still showing the label via options.
+                LookupName:
+                  idValue !== null && idValue !== undefined
+                    ? String(idValue)
+                    : ""
+              };
+            })
           : [];
         setRows(normalizedRows);
         setError(null);
@@ -228,7 +236,7 @@ export function AIData2WithAuth() {
         selectColumns={{
           LookupName: { options: lookupOptions }
         }}
-        hiddenColumns={["LookupId", "LookupID", "LastUpdate"]}
+        hiddenColumns={["LookupId", "LookupID", "lookupID", "LastUpdate"]}
       />
     </div>
   );

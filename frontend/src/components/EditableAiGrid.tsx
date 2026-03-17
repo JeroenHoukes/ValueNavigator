@@ -64,6 +64,8 @@ export function EditableAiGrid({
     ? "LookupId"
     : columns.includes("LookupID")
     ? "LookupID"
+    : columns.includes("lookupID")
+    ? "lookupID"
     : null;
 
   function updateCell(column: string, value: string) {
