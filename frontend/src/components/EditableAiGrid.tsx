@@ -20,6 +20,7 @@ type Props = {
       options: { value: string; label: string }[];
     }
   >;
+  hiddenColumns?: string[];
 };
 
 export function EditableAiGrid({
@@ -29,12 +30,18 @@ export function EditableAiGrid({
   endpoint = "/api/ai-data",
   keyColumn,
   onDataChanged,
-  selectColumns
+  selectColumns,
+  hiddenColumns
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
+    {}
+  );
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const effectiveKeyColumn = keyColumn ?? columns[0];
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editingRow, setEditingRow] = useState<Record<string, string>>({});
@@ -46,6 +53,11 @@ export function EditableAiGrid({
     }
     return initial;
   });
+
+  const visibleColumns =
+    hiddenColumns && hiddenColumns.length > 0
+      ? columns.filter((c) => !hiddenColumns.includes(c))
+      : columns;
 
   function updateCell(column: string, value: string) {
     setNewRow((prev) => ({ ...prev, [column]: value }));
@@ -229,18 +241,55 @@ export function EditableAiGrid({
     }
   }
 
-  const filteredRows =
-    filter.trim() === ""
-      ? rows
-      : rows.filter((row) =>
-          columns.some((col) => {
-            const value = (row as Record<string, unknown>)[col];
-            if (value === null || value === undefined) return false;
-            const text =
-              typeof value === "object" ? JSON.stringify(value) : String(value);
-            return text.toLowerCase().includes(filter.toLowerCase());
-          })
+  function updateColumnFilter(column: string, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [column]: value }));
+  }
+
+  function toggleSort(column: string) {
+    setSortColumn((prev) => {
+      if (prev === column) {
+        setSortDirection((dir) => (dir === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDirection("asc");
+      return column;
+    });
+  }
+
+  function getCellText(row: TableAiRow, col: string): string {
+    const value = (row as Record<string, unknown>)[col];
+    if (value === null || value === undefined) return "";
+    return typeof value === "object" ? JSON.stringify(value) : String(value);
+  }
+
+  const filteredRows = rows
+    .filter((row) => {
+      // Global filter across all visible columns
+      if (filter.trim() !== "") {
+        const needle = filter.toLowerCase();
+        const anyMatch = visibleColumns.some((col) =>
+          getCellText(row, col).toLowerCase().includes(needle)
         );
+        if (!anyMatch) return false;
+      }
+
+      // Per-column filters
+      for (const col of visibleColumns) {
+        const colFilter = (columnFilters[col] ?? "").trim().toLowerCase();
+        if (!colFilter) continue;
+        const text = getCellText(row, col).toLowerCase();
+        if (!text.includes(colFilter)) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      if (!sortColumn) return 0;
+      const av = getCellText(a, sortColumn);
+      const bv = getCellText(b, sortColumn);
+      if (sortDirection === "asc") return av.localeCompare(bv);
+      return bv.localeCompare(av);
+    });
 
   return (
     <div className="space-y-2">
@@ -266,12 +315,30 @@ export function EditableAiGrid({
         <table className="min-w-full text-sm">
           <thead className="bg-slate-900/80">
             <tr>
-              {columns.map((col) => (
+              {visibleColumns.map((col) => (
                 <th
                   key={col}
-                  className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
+                  className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800 align-top"
                 >
-                  {col}
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(col)}
+                    className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400"
+                  >
+                    <span>{col}</span>
+                    {sortColumn === col && (
+                      <span aria-hidden>
+                        {sortDirection === "asc" ? "▲" : "▼"}
+                      </span>
+                    )}
+                  </button>
+                  <input
+                    type="text"
+                    value={columnFilters[col] ?? ""}
+                    onChange={(e) => updateColumnFilter(col, e.target.value)}
+                    placeholder="Filter..."
+                    className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[10px] text-white placeholder:text-slate-500"
+                  />
                 </th>
               ))}
               <th
@@ -289,7 +356,7 @@ export function EditableAiGrid({
                   rowIndex % 2 === 0 ? "bg-slate-900/40" : "bg-slate-900/10"
                 }
               >
-                {columns.map((col) => {
+                {visibleColumns.map((col) => {
                   const isEditing = editingRowIndex === rowIndex;
                   const value = (row as Record<string, unknown>)[col];
                   let display =
@@ -387,7 +454,7 @@ export function EditableAiGrid({
               </tr>
             ))}
             <tr className="bg-slate-900/60">
-              {columns.map((col) => (
+              {visibleColumns.map((col) => (
                 <td
                   key={col}
                   className="px-3 py-2 border-t border-slate-700 align-top"
