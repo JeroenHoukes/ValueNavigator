@@ -349,6 +349,38 @@ export function EditableAiGrid({
             </tr>
           </thead>
           <tbody>
+            <tr className="bg-slate-900/60">
+              <td className="px-3 py-2 border-t border-slate-700 align-top" />
+              {visibleColumns.map((col) => (
+                <td
+                  key={col}
+                  className="px-3 py-2 border-t border-slate-700 align-top"
+                >
+                  {selectColumns && selectColumns[col] ? (
+                    <select
+                      value={newRow[col] ?? ""}
+                      onChange={(e) => updateCell(col, e.target.value)}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                    >
+                      <option value="">Select {col}</option>
+                      {selectColumns[col].options.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={newRow[col] ?? ""}
+                      onChange={(e) => updateCell(col, e.target.value)}
+                      placeholder={`New ${col}`}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                    />
+                  )}
+                </td>
+              ))}
+            </tr>
             {filteredRows.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
@@ -453,38 +485,6 @@ export function EditableAiGrid({
                 })}
               </tr>
             ))}
-            <tr className="bg-slate-900/60">
-              <td className="px-3 py-2 border-t border-slate-700 align-top" />
-              {visibleColumns.map((col) => (
-                <td
-                  key={col}
-                  className="px-3 py-2 border-t border-slate-700 align-top"
-                >
-                  {selectColumns && selectColumns[col] ? (
-                    <select
-                      value={newRow[col] ?? ""}
-                      onChange={(e) => updateCell(col, e.target.value)}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                    >
-                      <option value="">Select {col}</option>
-                      {selectColumns[col].options.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={newRow[col] ?? ""}
-                      onChange={(e) => updateCell(col, e.target.value)}
-                      placeholder={`New ${col}`}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                    />
-                  )}
-                </td>
-              ))}
-            </tr>
           </tbody>
         </table>
       </div>
