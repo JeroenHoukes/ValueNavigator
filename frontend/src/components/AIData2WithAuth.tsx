@@ -52,7 +52,9 @@ export function AIData2WithAuth() {
           })
         ]);
       })
-      .then(([dataRes, lookupRes]) => {
+      .then((result) => {
+        if (!result) return;
+        const [dataRes, lookupRes] = result as [Response, Response];
         if (cancelled) return;
         if (!dataRes?.ok) {
           if (dataRes?.status === 401) {
