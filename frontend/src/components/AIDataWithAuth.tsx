@@ -139,6 +139,15 @@ export function AIDataWithAuth() {
   }
 
   const columns = rows.length > 0 ? Object.keys(rows[0] as Record<string, unknown>) : [];
+  // Move user and last-update related columns to the far right when present.
+  const orderedColumns = [...columns];
+  ["UserName", "username", "LastUpdate", "LastUpd", "lastupd"].forEach((name) => {
+    const idx = orderedColumns.indexOf(name);
+    if (idx >= 0) {
+      orderedColumns.splice(idx, 1);
+      orderedColumns.push(name);
+    }
+  });
 
   return (
     <div className="space-y-4">
@@ -155,7 +164,7 @@ export function AIDataWithAuth() {
         </p>
       </header>
       <EditableAiGrid
-        columns={columns}
+        columns={orderedColumns}
         rows={rows}
         accessToken={accessToken}
         endpoint="/api/ai-data"

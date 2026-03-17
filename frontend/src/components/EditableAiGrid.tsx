@@ -315,6 +315,11 @@ export function EditableAiGrid({
         <table className="min-w-full text-sm">
           <thead className="bg-slate-900/80">
             <tr>
+              <th
+                className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
+              >
+                Actions
+              </th>
               {visibleColumns.map((col) => (
                 <th
                   key={col}
@@ -341,11 +346,6 @@ export function EditableAiGrid({
                   />
                 </th>
               ))}
-              <th
-                className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
-              >
-                Actions
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -356,6 +356,47 @@ export function EditableAiGrid({
                   rowIndex % 2 === 0 ? "bg-slate-900/40" : "bg-slate-900/10"
                 }
               >
+                <td className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap">
+                  {editingRowIndex === rowIndex ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={saveEdit}
+                        disabled={isPending}
+                        className="rounded bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-500 disabled:opacity-60"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRowIndex(null);
+                          setEditingRow({});
+                        }}
+                        className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(rowIndex)}
+                        className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteRow(rowIndex)}
+                        className="rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </td>
                 {visibleColumns.map((col) => {
                   const isEditing = editingRowIndex === rowIndex;
                   const value = (row as Record<string, unknown>)[col];
@@ -410,50 +451,10 @@ export function EditableAiGrid({
                     </td>
                   );
                 })}
-                <td className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap">
-                  {editingRowIndex === rowIndex ? (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={saveEdit}
-                        disabled={isPending}
-                        className="rounded bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-500 disabled:opacity-60"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRowIndex(null);
-                          setEditingRow({});
-                        }}
-                        className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(rowIndex)}
-                        className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteRow(rowIndex)}
-                        className="rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </td>
               </tr>
             ))}
             <tr className="bg-slate-900/60">
+              <td className="px-3 py-2 border-t border-slate-700 align-top" />
               {visibleColumns.map((col) => (
                 <td
                   key={col}
@@ -483,7 +484,6 @@ export function EditableAiGrid({
                   )}
                 </td>
               ))}
-              <td className="px-3 py-2 border-t border-slate-700 align-top" />
             </tr>
           </tbody>
         </table>
