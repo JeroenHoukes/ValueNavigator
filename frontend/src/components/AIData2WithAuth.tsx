@@ -1,0 +1,167 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useMsal } from "@azure/msal-react";
+import { InteractionStatus } from "@azure/msal-browser";
+import { sqlScope } from "@/config/msalConfig";
+import { EditableAiGrid } from "@/components/EditableAiGrid";
+
+type TableAiRow = { [key: string]: unknown };
+
+export function AIData2WithAuth() {
+  const { instance, accounts, inProgress } = useMsal();
+  const [rows, setRows] = useState<TableAiRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  const isAuthenticated = accounts.length > 0;
+  const isLoginInProgress =
+    inProgress === InteractionStatus.Login ||
+    inProgress === InteractionStatus.Startup;
+
+  useEffect(() => {
+    if (!isAuthenticated || !accounts[0]) {
+      setLoading(false);
+      setAccessToken(null);
+      setRows([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    instance
+      .acquireTokenSilent({
+        scopes: [sqlScope],
+        account: accounts[0]
+      })
+      .then((response) => {
+        if (cancelled) return;
+        setAccessToken(response.accessToken);
+        return fetch("/api/ai-data2", {
+          headers: { Authorization: `Bearer ${response.accessToken}` }
+        });
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res?.ok) {
+          if (res?.status === 401) {
+            setError(
+              "Not authorized to access the database. Ensure your Entra ID user is added to the Azure SQL database."
+            );
+          } else {
+            setError(res?.statusText || "Failed to load data.");
+          }
+          setLoading(false);
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setRows(Array.isArray(data) ? data : []);
+        setError(null);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e?.message || "Failed to get token or load data.");
+        setAccessToken(null);
+        setRows([]);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, accounts, instance]);
+
+  const handleLogin = () => {
+    instance
+      .loginRedirect({ scopes: ["User.Read", sqlScope] })
+      .catch(console.error);
+  };
+
+  if (isLoginInProgress || (!isAuthenticated && loading)) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-slate-400">Signing in...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">AI Data 2 (table_ai2)</h2>
+        <p className="text-slate-300 max-w-2xl">
+          Sign in with your Entra ID to view and edit data from table_ai2. The
+          database will show only rows you are allowed to see.
+        </p>
+        <button
+          type="button"
+          onClick={handleLogin}
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90"
+        >
+          Sign in with Microsoft
+        </button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-slate-400">Loading data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">AI Data 2 (table_ai2)</h2>
+        <div className="rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-100">
+          <p className="font-semibold mb-1">Error loading data</p>
+          <p className="font-mono break-all text-xs">{error}</p>
+        </div>
+        <p className="text-slate-400 text-sm">
+          Signed in as{" "}
+          <span className="font-mono">{accounts[0]?.username}</span>. Ensure
+          this user exists in the Azure SQL database and has SELECT on
+          table_ai2.
+        </p>
+      </div>
+    );
+  }
+
+  const columns =
+    rows.length > 0 ? Object.keys(rows[0] as Record<string, unknown>) : [];
+
+  return (
+    <div className="space-y-4">
+      <header className="space-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-2xl font-semibold">AI Data 2 (table_ai2)</h2>
+          <span className="text-sm text-slate-400">
+            Signed in as{" "}
+            <span className="font-mono">{accounts[0]?.username}</span>
+          </span>
+        </div>
+        <p className="text-slate-300 max-w-2xl">
+          Data from the ValueNavigator database on Azure SQL (
+          <span className="font-mono">leefserver.database.windows.net</span>)
+          for your user (table_ai2).
+        </p>
+      </header>
+      <EditableAiGrid
+        columns={columns}
+        rows={rows}
+        accessToken={accessToken}
+      />
+    </div>
+  );
+}
+
