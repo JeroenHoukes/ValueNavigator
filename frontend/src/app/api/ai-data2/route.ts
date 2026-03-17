@@ -43,10 +43,17 @@ export async function POST(request: Request) {
       payload = null;
     }
 
-    const values =
+    let values =
       payload && typeof payload === "object" && "values" in payload
         ? (payload as { values?: Record<string, unknown> }).values
         : undefined;
+
+    // LookupName is a joined/display-only column and does not exist
+    // in table_ai2, so never try to insert/update it.
+    if (values && "LookupName" in values) {
+      const { LookupName, ...rest } = values as Record<string, unknown>;
+      values = rest;
+    }
 
     if (values && Object.keys(values).length > 0) {
       const columns = Object.keys(values);
@@ -95,7 +102,12 @@ export async function PUT(request: Request) {
 
     const keyColumn = payload?.keyColumn;
     const keyValue = payload?.keyValue;
-    const values = payload?.values;
+    let values = payload?.values;
+
+    if (values && "LookupName" in values) {
+      const { LookupName, ...rest } = values as Record<string, unknown>;
+      values = rest;
+    }
 
     if (!keyColumn || keyValue === undefined || !values || !Object.keys(values).length) {
       return NextResponse.json(
