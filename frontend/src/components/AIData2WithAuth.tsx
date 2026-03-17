@@ -228,7 +228,7 @@ export function AIData2WithAuth() {
         selectColumns={{
           LookupName: { options: lookupOptions }
         }}
-        hiddenColumns={["LookupId", "LastUpdate"]}
+        hiddenColumns={["LookupId", "LookupID", "LastUpdate"]}
       />
     </div>
   );

@@ -59,13 +59,20 @@ export function EditableAiGrid({
       ? columns.filter((c) => !hiddenColumns.includes(c))
       : columns;
 
+  // Support different possible casing for the lookup ID column.
+  const lookupIdColumn = columns.includes("LookupId")
+    ? "LookupId"
+    : columns.includes("LookupID")
+    ? "LookupID"
+    : null;
+
   function updateCell(column: string, value: string) {
     setNewRow((prev) => {
       const next = { ...prev, [column]: value };
       // When editing the visible LookupName column, also set the hidden LookupId
       // so inserts/updates have the correct foreign key.
-      if (column === "LookupName" && columns.includes("LookupId")) {
-        next.LookupId = value;
+      if (column === "LookupName" && lookupIdColumn) {
+        next[lookupIdColumn] = value;
       }
       return next;
     });
@@ -136,8 +143,8 @@ export function EditableAiGrid({
   function updateEditingCell(column: string, value: string) {
     setEditingRow((prev) => {
       const next = { ...prev, [column]: value };
-      if (column === "LookupName" && columns.includes("LookupId")) {
-        next.LookupId = value;
+      if (column === "LookupName" && lookupIdColumn) {
+        next[lookupIdColumn] = value;
       }
       return next;
     });
