@@ -11,9 +11,15 @@ type Props = {
   columns: string[];
   rows: TableAiRow[];
   accessToken?: string | null;
+  endpoint?: string;
 };
 
-export function EditableAiGrid({ columns, rows, accessToken }: Props) {
+export function EditableAiGrid({
+  columns,
+  rows,
+  accessToken,
+  endpoint = "/api/ai-data"
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +48,7 @@ export function EditableAiGrid({ columns, rows, accessToken }: Props) {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-      const res = await fetch("/api/ai-data", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers,
         body: JSON.stringify({ values })

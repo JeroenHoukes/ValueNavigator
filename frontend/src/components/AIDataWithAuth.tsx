@@ -142,7 +142,12 @@ export function AIDataWithAuth() {
           <span className="font-mono">leefserver.database.windows.net</span>) for your user.
         </p>
       </header>
-      <EditableAiGrid columns={columns} rows={rows} accessToken={accessToken} />
+      <EditableAiGrid
+        columns={columns}
+        rows={rows}
+        accessToken={accessToken}
+        endpoint="/api/ai-data"
+      />
     </div>
   );
 }

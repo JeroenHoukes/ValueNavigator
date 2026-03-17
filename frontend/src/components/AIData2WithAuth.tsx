@@ -160,6 +160,7 @@ export function AIData2WithAuth() {
         columns={columns}
         rows={rows}
         accessToken={accessToken}
+        endpoint="/api/ai-data2"
       />
     </div>
   );
