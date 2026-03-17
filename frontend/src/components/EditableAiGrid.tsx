@@ -350,7 +350,16 @@ export function EditableAiGrid({
           </thead>
           <tbody>
             <tr className="bg-slate-900/60">
-              <td className="px-3 py-2 border-t border-slate-700 align-top" />
+              <td className="px-3 py-2 border-t border-slate-700 align-top">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isPending}
+                  className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isPending ? "Saving..." : "Save"}
+                </button>
+              </td>
               {visibleColumns.map((col) => (
                 <td
                   key={col}
