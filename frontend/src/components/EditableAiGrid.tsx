@@ -292,12 +292,20 @@ export function EditableAiGrid({
                 {columns.map((col) => {
                   const isEditing = editingRowIndex === rowIndex;
                   const value = (row as Record<string, unknown>)[col];
-                  const display =
+                  let display =
                     value === null || value === undefined
                       ? ""
                       : typeof value === "object"
                       ? JSON.stringify(value)
                       : String(value);
+
+                  const selectConfig = selectColumns?.[col];
+                  if (selectConfig && display !== "") {
+                    const match = selectConfig.options.find(
+                      (opt) => opt.value === display
+                    );
+                    if (match) display = match.label;
+                  }
                   return (
                     <td
                       key={col}
