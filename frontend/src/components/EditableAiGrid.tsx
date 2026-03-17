@@ -14,6 +14,12 @@ type Props = {
   endpoint?: string;
   keyColumn?: string;
   onDataChanged?: () => void;
+  selectColumns?: Record<
+    string,
+    {
+      options: { value: string; label: string }[];
+    }
+  >;
 };
 
 export function EditableAiGrid({
@@ -22,7 +28,8 @@ export function EditableAiGrid({
   accessToken,
   endpoint = "/api/ai-data",
   keyColumn,
-  onDataChanged
+  onDataChanged,
+  selectColumns
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -297,14 +304,31 @@ export function EditableAiGrid({
                       className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap"
                     >
                       {isEditing ? (
-                        <input
-                          type="text"
-                          value={editingRow[col] ?? ""}
-                          onChange={(e) =>
-                            updateEditingCell(col, e.target.value)
-                          }
-                          className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                        />
+                        selectColumns && selectColumns[col] ? (
+                          <select
+                            value={editingRow[col] ?? ""}
+                            onChange={(e) =>
+                              updateEditingCell(col, e.target.value)
+                            }
+                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="">Select {col}</option>
+                            {selectColumns[col].options.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={editingRow[col] ?? ""}
+                            onChange={(e) =>
+                              updateEditingCell(col, e.target.value)
+                            }
+                            className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                          />
+                        )
                       ) : (
                         display
                       )}
@@ -360,13 +384,28 @@ export function EditableAiGrid({
                   key={col}
                   className="px-3 py-2 border-t border-slate-700 align-top"
                 >
-                  <input
-                    type="text"
-                    value={newRow[col] ?? ""}
-                    onChange={(e) => updateCell(col, e.target.value)}
-                    placeholder={`New ${col}`}
-                    className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                  />
+                  {selectColumns && selectColumns[col] ? (
+                    <select
+                      value={newRow[col] ?? ""}
+                      onChange={(e) => updateCell(col, e.target.value)}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                    >
+                      <option value="">Select {col}</option>
+                      {selectColumns[col].options.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={newRow[col] ?? ""}
+                      onChange={(e) => updateCell(col, e.target.value)}
+                      placeholder={`New ${col}`}
+                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                    />
+                  )}
                 </td>
               ))}
               <td className="px-3 py-2 border-t border-slate-700 align-top" />

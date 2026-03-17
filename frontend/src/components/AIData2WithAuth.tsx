@@ -11,6 +11,9 @@ type TableAiRow = { [key: string]: unknown };
 export function AIData2WithAuth() {
   const { instance, accounts, inProgress } = useMsal();
   const [rows, setRows] = useState<TableAiRow[]>([]);
+  const [lookupOptions, setLookupOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -40,28 +43,62 @@ export function AIData2WithAuth() {
       .then((response) => {
         if (cancelled) return;
         setAccessToken(response.accessToken);
-        return fetch("/api/ai-data2", {
+        return Promise.all([
+          fetch("/api/ai-data2", {
+            headers: { Authorization: `Bearer ${response.accessToken}` }
+          }),
+          fetch("/api/lookup-ai", {
           headers: { Authorization: `Bearer ${response.accessToken}` }
-        });
+          })
+        ]);
       })
-      .then((res) => {
+      .then(([dataRes, lookupRes]) => {
         if (cancelled) return;
-        if (!res?.ok) {
-          if (res?.status === 401) {
+        if (!dataRes?.ok) {
+          if (dataRes?.status === 401) {
             setError(
               "Not authorized to access the database. Ensure your Entra ID user is added to the Azure SQL database."
             );
           } else {
-            setError(res?.statusText || "Failed to load data.");
+            setError(dataRes?.statusText || "Failed to load data.");
           }
           setLoading(false);
           return;
         }
-        return res.json();
+        if (!lookupRes?.ok) {
+          setError(lookupRes?.statusText || "Failed to load lookup values.");
+          setLoading(false);
+          return;
+        }
+        return Promise.all([dataRes.json(), lookupRes.json()]);
       })
-      .then((data) => {
+      .then((payload) => {
         if (cancelled) return;
+        if (!payload) return;
+        const [data, lookups] = payload as [unknown, unknown];
         setRows(Array.isArray(data) ? data : []);
+        if (Array.isArray(lookups)) {
+          setLookupOptions(
+            lookups
+              .filter(
+                (x): x is { LookupId: unknown; LookupName: unknown } =>
+                  x !== null &&
+                  typeof x === "object" &&
+                  "LookupId" in x &&
+                  "LookupName" in x
+              )
+              .map((x) => ({
+                value: String(
+                  (x as { LookupId: unknown }).LookupId ?? ""
+                ),
+                label: String(
+                  (x as { LookupName: unknown }).LookupName ?? ""
+                )
+              }))
+          );
+        } else {
+          setLookupOptions([]);
+        }
         setError(null);
         setLoading(false);
       })
@@ -169,6 +206,9 @@ export function AIData2WithAuth() {
         accessToken={accessToken}
         endpoint="/api/ai-data2"
         onDataChanged={loadData}
+        selectColumns={{
+          LookupId: { options: lookupOptions }
+        }}
       />
     </div>
   );

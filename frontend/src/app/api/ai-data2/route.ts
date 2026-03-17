@@ -17,7 +17,11 @@ export async function GET(request: Request) {
   }
   try {
     const pool = await getDbWithToken(token);
-    const result = await pool.request().query("SELECT * FROM table_ai2");
+    const result = await pool
+      .request()
+      .query(
+        "SELECT t.*, l.LookupName FROM table_ai2 t LEFT JOIN lookup_ai l ON t.LookupId = l.LookupId"
+      );
     await pool.close();
     return NextResponse.json(result.recordset);
   } catch (error) {
