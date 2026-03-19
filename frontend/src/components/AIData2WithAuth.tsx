@@ -7,6 +7,7 @@ import { sqlScope } from "@/config/msalConfig";
 import { EditableAiGrid } from "@/components/EditableAiGrid";
 
 type TableAiRow = { [key: string]: unknown };
+type UndoItem = { id: unknown; values: Record<string, unknown> };
 
 export function AIData2WithAuth() {
   const { instance, accounts, inProgress } = useMsal();
@@ -18,6 +19,9 @@ export function AIData2WithAuth() {
   const [bulkCol1, setBulkCol1] = useState<string>("");
   const [bulkCol2, setBulkCol2] = useState<string>("");
   const [bulkLookupId, setBulkLookupId] = useState<string>("");
+  const [lastBulkUndoItems, setLastBulkUndoItems] = useState<UndoItem[] | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -215,6 +219,14 @@ export function AIData2WithAuth() {
     }
   );
 
+  const lookupIdColumnName = columns.includes("lookupID")
+    ? "lookupID"
+    : columns.includes("LookupID")
+    ? "LookupID"
+    : columns.includes("LookupId")
+    ? "LookupId"
+    : "lookupID";
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -278,6 +290,24 @@ export function AIData2WithAuth() {
               if (bulkCol2.trim() !== "") updates.Col2 = bulkCol2.trim();
               if (bulkLookupId !== "") updates.lookupID = bulkLookupId;
               if (!Object.keys(updates).length) return;
+
+              const undoItems: UndoItem[] = selectedIds
+                .map((id) => {
+                  const row = rows.find((r) => (r as { id?: unknown }).id === id);
+                  if (!row) return null;
+                  const anyRow = row as Record<string, unknown>;
+                  const prevValues: Record<string, unknown> = {};
+                  for (const key of Object.keys(updates)) {
+                    if (key === "lookupID") {
+                      prevValues.lookupID =
+                        anyRow.lookupID ?? anyRow.LookupID ?? anyRow.LookupId ?? null;
+                    } else {
+                      prevValues[key] = anyRow[key] ?? null;
+                    }
+                  }
+                  return { id, values: prevValues };
+                })
+                .filter((x): x is UndoItem => x !== null);
               try {
                 const res = await fetch("/api/ai-data2/bulk-lookup", {
                   method: "POST",
@@ -294,6 +324,7 @@ export function AIData2WithAuth() {
                   console.error("Bulk update failed", await res.text());
                   return;
                 }
+                setLastBulkUndoItems(undoItems);
                 setBulkCol1("");
                 setBulkCol2("");
                 setBulkLookupId("");
@@ -306,6 +337,44 @@ export function AIData2WithAuth() {
             className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
           >
             Apply to selected
+          </button>
+        </div>
+      )}
+      {lastBulkUndoItems && lastBulkUndoItems.length > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-700 bg-amber-950/30 px-3 py-2 text-sm">
+          <span className="text-amber-100">
+            Last bulk update applied to {lastBulkUndoItems.length} row
+            {lastBulkUndoItems.length > 1 ? "s" : ""}.
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!accessToken || !lastBulkUndoItems?.length) return;
+              try {
+                const res = await fetch("/api/ai-data2/bulk-undo", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`
+                  },
+                  body: JSON.stringify({
+                    items: lastBulkUndoItems,
+                    lookupIdColumnName
+                  })
+                });
+                if (!res.ok) {
+                  console.error("Undo failed", await res.text());
+                  return;
+                }
+                setLastBulkUndoItems(null);
+                loadData();
+              } catch (err) {
+                console.error("Undo error", err);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-500"
+          >
+            Undo last bulk update
           </button>
         </div>
       )}
