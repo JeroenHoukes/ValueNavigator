@@ -42,7 +42,6 @@ export function EditableAiGrid({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState("");
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
     {}
   );
@@ -296,20 +295,22 @@ export function EditableAiGrid({
   function getCellText(row: TableAiRow, col: string): string {
     const value = (row as Record<string, unknown>)[col];
     if (value === null || value === undefined) return "";
-    return typeof value === "object" ? JSON.stringify(value) : String(value);
+    const raw =
+      typeof value === "object" ? JSON.stringify(value) : String(value);
+
+    // For select-backed columns (e.g. LookupName), filter/sort by label text
+    // that the user sees instead of the stored internal value (lookup id).
+    const selectConfig = selectColumns?.[col];
+    if (selectConfig && raw !== "") {
+      const match = selectConfig.options.find((opt) => opt.value === raw);
+      if (match) return match.label;
+    }
+
+    return raw;
   }
 
   const filteredRows = rows
     .filter((row) => {
-      // Global filter across all visible columns
-      if (filter.trim() !== "") {
-        const needle = filter.toLowerCase();
-        const anyMatch = visibleColumns.some((col) =>
-          getCellText(row, col).toLowerCase().includes(needle)
-        );
-        if (!anyMatch) return false;
-      }
-
       // Per-column filters
       for (const col of visibleColumns) {
         const colFilter = (columnFilters[col] ?? "").trim().toLowerCase();
@@ -330,24 +331,6 @@ export function EditableAiGrid({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <input
-          type="text"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter rows..."
-          className="w-full max-w-xs rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-white placeholder:text-slate-500"
-        />
-        {filter && (
-          <button
-            type="button"
-            onClick={() => setFilter("")}
-            className="text-xs text-slate-400 hover:text-slate-200"
-          >
-            Clear filter
-          </button>
-        )}
-      </div>
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 overflow-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-900/80">
