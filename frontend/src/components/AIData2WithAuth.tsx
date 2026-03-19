@@ -15,6 +15,8 @@ export function AIData2WithAuth() {
     { value: string; label: string }[]
   >([]);
   const [selectedIds, setSelectedIds] = useState<unknown[]>([]);
+  const [bulkColumn, setBulkColumn] = useState<"" | "Col1" | "Col2" | "lookupID">("");
+  const [bulkTextValue, setBulkTextValue] = useState<string>("");
   const [bulkLookupId, setBulkLookupId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -232,28 +234,64 @@ export function AIData2WithAuth() {
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm">
           <span className="text-slate-200">
-            Bulk update lookup for{" "}
+            Bulk update for{" "}
             <span className="font-semibold">{selectedIds.length}</span>{" "}
             selected row{selectedIds.length > 1 ? "s" : ""}:
           </span>
           <select
-            value={bulkLookupId}
-            onChange={(e) => setBulkLookupId(e.target.value)}
+            value={bulkColumn}
+            onChange={(e) => {
+              const next = e.target.value as "" | "Col1" | "Col2" | "lookupID";
+              setBulkColumn(next);
+              setBulkTextValue("");
+              setBulkLookupId("");
+            }}
             className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
           >
-            <option value="">Select Lookup</option>
-            {lookupOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+            <option value="">Select column</option>
+            <option value="Col1">Col1</option>
+            <option value="Col2">Col2</option>
+            <option value="lookupID">LookupName</option>
           </select>
+          {bulkColumn === "lookupID" ? (
+            <select
+              value={bulkLookupId}
+              onChange={(e) => setBulkLookupId(e.target.value)}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
+            >
+              <option value="">Select Lookup</option>
+              {lookupOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={bulkTextValue}
+              onChange={(e) => setBulkTextValue(e.target.value)}
+              placeholder={
+                bulkColumn ? `New ${bulkColumn} value` : "Select a column first"
+              }
+              disabled={!bulkColumn}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white disabled:opacity-60"
+            />
+          )}
           <button
             type="button"
-            disabled={!bulkLookupId}
+            disabled={
+              !bulkColumn ||
+              (bulkColumn === "lookupID"
+                ? !bulkLookupId
+                : bulkTextValue.trim() === "")
+            }
             onClick={async () => {
-              if (!bulkLookupId || selectedIds.length === 0 || !accessToken)
+              if (!bulkColumn || selectedIds.length === 0 || !accessToken)
                 return;
+              const valueToApply =
+                bulkColumn === "lookupID" ? bulkLookupId : bulkTextValue.trim();
+              if (!valueToApply) return;
               try {
                 const res = await fetch("/api/ai-data2/bulk-lookup", {
                   method: "POST",
@@ -263,13 +301,16 @@ export function AIData2WithAuth() {
                   },
                   body: JSON.stringify({
                     ids: selectedIds,
-                    lookupId: bulkLookupId
+                    column: bulkColumn,
+                    value: valueToApply
                   })
                 });
                 if (!res.ok) {
                   console.error("Bulk update failed", await res.text());
                   return;
                 }
+                setBulkColumn("");
+                setBulkTextValue("");
                 setBulkLookupId("");
                 setSelectedIds([]);
                 loadData();

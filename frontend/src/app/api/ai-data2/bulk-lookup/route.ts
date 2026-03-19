@@ -20,22 +20,32 @@ export async function POST(request: Request) {
     const payload = (await request.json().catch(() => null)) as
       | {
           ids?: unknown[];
-          lookupId?: unknown;
+          column?: string;
+          value?: unknown;
         }
       | null;
 
     const ids = Array.isArray(payload?.ids) ? payload?.ids : [];
-    const lookupId = payload?.lookupId;
+    const column = payload?.column;
+    const value = payload?.value;
 
-    if (!ids.length || lookupId === undefined || lookupId === null) {
+    if (!ids.length || !column || value === undefined || value === null) {
       return NextResponse.json(
-        { error: "ids and lookupId are required." },
+        { error: "ids, column, and value are required." },
+        { status: 400 }
+      );
+    }
+
+    const allowedColumns = new Set(["Col1", "Col2", "lookupID"]);
+    if (!allowedColumns.has(column)) {
+      return NextResponse.json(
+        { error: "Invalid column for bulk update." },
         { status: 400 }
       );
     }
 
     const pool = await getDbWithToken(token);
-    let requestBuilder = pool.request().input("lookupId", lookupId as unknown);
+    let requestBuilder = pool.request().input("val", value as unknown);
 
     const idParams: string[] = [];
     ids.forEach((id, index) => {
@@ -46,14 +56,14 @@ export async function POST(request: Request) {
 
     const inClause = idParams.join(", ");
     await requestBuilder.query(
-      `UPDATE table_ai2 SET lookupID = @lookupId WHERE id IN (${inClause});`
+      `UPDATE table_ai2 SET [${column}] = @val WHERE id IN (${inClause});`
     );
 
     await pool.close();
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unknown error in bulk lookup update.";
+      error instanceof Error ? error.message : "Unknown error in bulk update.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
