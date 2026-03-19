@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 type TableAiRow = {
@@ -328,6 +328,20 @@ export function EditableAiGrid({
       if (sortDirection === "asc") return av.localeCompare(bv);
       return bv.localeCompare(av);
     });
+
+  useEffect(() => {
+    if (!enableRowSelection) return;
+    const visibleIdSet = new Set(filteredRows.map((row) => getRowId(row)));
+    const nextSelected = selectedIds.filter((id) => visibleIdSet.has(id));
+    const changed =
+      nextSelected.length !== selectedIds.length ||
+      nextSelected.some((id, idx) => id !== selectedIds[idx]);
+
+    if (changed) {
+      setSelectedIds(nextSelected);
+      onSelectionChange?.(nextSelected);
+    }
+  }, [enableRowSelection, filteredRows, selectedIds, onSelectionChange]);
 
   return (
     <div className="space-y-2">
