@@ -15,8 +15,8 @@ export function AIData2WithAuth() {
     { value: string; label: string }[]
   >([]);
   const [selectedIds, setSelectedIds] = useState<unknown[]>([]);
-  const [bulkColumn, setBulkColumn] = useState<"" | "Col1" | "Col2" | "lookupID">("");
-  const [bulkTextValue, setBulkTextValue] = useState<string>("");
+  const [bulkCol1, setBulkCol1] = useState<string>("");
+  const [bulkCol2, setBulkCol2] = useState<string>("");
   const [bulkLookupId, setBulkLookupId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -238,60 +238,46 @@ export function AIData2WithAuth() {
             <span className="font-semibold">{selectedIds.length}</span>{" "}
             selected row{selectedIds.length > 1 ? "s" : ""}:
           </span>
+          <input
+            type="text"
+            value={bulkCol1}
+            onChange={(e) => setBulkCol1(e.target.value)}
+            placeholder="New Col1 (optional)"
+            className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
+          />
+          <input
+            type="text"
+            value={bulkCol2}
+            onChange={(e) => setBulkCol2(e.target.value)}
+            placeholder="New Col2 (optional)"
+            className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
+          />
           <select
-            value={bulkColumn}
-            onChange={(e) => {
-              const next = e.target.value as "" | "Col1" | "Col2" | "lookupID";
-              setBulkColumn(next);
-              setBulkTextValue("");
-              setBulkLookupId("");
-            }}
+            value={bulkLookupId}
+            onChange={(e) => setBulkLookupId(e.target.value)}
             className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
           >
-            <option value="">Select column</option>
-            <option value="Col1">Col1</option>
-            <option value="Col2">Col2</option>
-            <option value="lookupID">LookupName</option>
+            <option value="">LookupName (optional)</option>
+            {lookupOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
-          {bulkColumn === "lookupID" ? (
-            <select
-              value={bulkLookupId}
-              onChange={(e) => setBulkLookupId(e.target.value)}
-              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
-            >
-              <option value="">Select Lookup</option>
-              {lookupOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={bulkTextValue}
-              onChange={(e) => setBulkTextValue(e.target.value)}
-              placeholder={
-                bulkColumn ? `New ${bulkColumn} value` : "Select a column first"
-              }
-              disabled={!bulkColumn}
-              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white disabled:opacity-60"
-            />
-          )}
           <button
             type="button"
             disabled={
-              !bulkColumn ||
-              (bulkColumn === "lookupID"
-                ? !bulkLookupId
-                : bulkTextValue.trim() === "")
+              bulkCol1.trim() === "" &&
+              bulkCol2.trim() === "" &&
+              bulkLookupId === ""
             }
             onClick={async () => {
-              if (!bulkColumn || selectedIds.length === 0 || !accessToken)
-                return;
-              const valueToApply =
-                bulkColumn === "lookupID" ? bulkLookupId : bulkTextValue.trim();
-              if (!valueToApply) return;
+              if (selectedIds.length === 0 || !accessToken) return;
+              const updates: Record<string, unknown> = {};
+              if (bulkCol1.trim() !== "") updates.Col1 = bulkCol1.trim();
+              if (bulkCol2.trim() !== "") updates.Col2 = bulkCol2.trim();
+              if (bulkLookupId !== "") updates.lookupID = bulkLookupId;
+              if (!Object.keys(updates).length) return;
               try {
                 const res = await fetch("/api/ai-data2/bulk-lookup", {
                   method: "POST",
@@ -301,16 +287,15 @@ export function AIData2WithAuth() {
                   },
                   body: JSON.stringify({
                     ids: selectedIds,
-                    column: bulkColumn,
-                    value: valueToApply
+                    updates
                   })
                 });
                 if (!res.ok) {
                   console.error("Bulk update failed", await res.text());
                   return;
                 }
-                setBulkColumn("");
-                setBulkTextValue("");
+                setBulkCol1("");
+                setBulkCol2("");
                 setBulkLookupId("");
                 setSelectedIds([]);
                 loadData();

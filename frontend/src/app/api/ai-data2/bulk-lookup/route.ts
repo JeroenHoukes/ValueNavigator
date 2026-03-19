@@ -20,32 +20,58 @@ export async function POST(request: Request) {
     const payload = (await request.json().catch(() => null)) as
       | {
           ids?: unknown[];
-          column?: string;
-          value?: unknown;
+          updates?: Record<string, unknown>;
         }
       | null;
 
     const ids = Array.isArray(payload?.ids) ? payload?.ids : [];
-    const column = payload?.column;
-    const value = payload?.value;
+    const updates = payload?.updates;
 
-    if (!ids.length || !column || value === undefined || value === null) {
+    if (!ids.length || !updates || typeof updates !== "object") {
       return NextResponse.json(
-        { error: "ids, column, and value are required." },
+        { error: "ids and updates are required." },
         { status: 400 }
       );
     }
 
     const allowedColumns = new Set(["Col1", "Col2", "lookupID"]);
-    if (!allowedColumns.has(column)) {
+    const updateColumns = Object.keys(updates).filter((c) =>
+      allowedColumns.has(c)
+    );
+
+    if (!updateColumns.length) {
       return NextResponse.json(
-        { error: "Invalid column for bulk update." },
+        { error: "No valid columns in updates." },
+        { status: 400 }
+      );
+    }
+
+    const valuesByColumn: Record<string, unknown> = {};
+    updateColumns.forEach((col) => {
+      valuesByColumn[col] = (updates as Record<string, unknown>)[col];
+    });
+
+    const nonNullColumns = updateColumns.filter((col) => {
+      const v = valuesByColumn[col];
+      return v !== undefined && v !== null;
+    });
+
+    if (!nonNullColumns.length) {
+      return NextResponse.json(
+        { error: "No non-null values in updates." },
         { status: 400 }
       );
     }
 
     const pool = await getDbWithToken(token);
-    let requestBuilder = pool.request().input("val", value as unknown);
+    let requestBuilder = pool.request();
+
+    const setClauses: string[] = [];
+    nonNullColumns.forEach((col, index) => {
+      const paramName = `val${index}`;
+      setClauses.push(`[${col}] = @${paramName}`);
+      requestBuilder = requestBuilder.input(paramName, valuesByColumn[col]);
+    });
 
     const idParams: string[] = [];
     ids.forEach((id, index) => {
@@ -56,7 +82,7 @@ export async function POST(request: Request) {
 
     const inClause = idParams.join(", ");
     await requestBuilder.query(
-      `UPDATE table_ai2 SET [${column}] = @val WHERE id IN (${inClause});`
+      `UPDATE table_ai2 SET ${setClauses.join(", ")} WHERE id IN (${inClause});`
     );
 
     await pool.close();
