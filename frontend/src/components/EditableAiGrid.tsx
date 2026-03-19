@@ -21,6 +21,9 @@ type Props = {
     }
   >;
   hiddenColumns?: string[];
+  enableRowSelection?: boolean;
+  onSelectionChange?: (selectedIds: unknown[]) => void;
+  rowIdColumn?: string;
 };
 
 export function EditableAiGrid({
@@ -31,7 +34,10 @@ export function EditableAiGrid({
   keyColumn,
   onDataChanged,
   selectColumns,
-  hiddenColumns
+  hiddenColumns,
+  enableRowSelection,
+  onSelectionChange,
+  rowIdColumn
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -45,6 +51,7 @@ export function EditableAiGrid({
   const effectiveKeyColumn = keyColumn ?? columns[0];
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editingRow, setEditingRow] = useState<Record<string, string>>({});
+  const [selectedIds, setSelectedIds] = useState<unknown[]>([]);
 
   const [newRow, setNewRow] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
@@ -67,6 +74,13 @@ export function EditableAiGrid({
     : columns.includes("lookupID")
     ? "lookupID"
     : null;
+
+  const idColumn = rowIdColumn ?? "id";
+
+  function getRowId(row: TableAiRow): unknown {
+    const anyRow = row as Record<string, unknown>;
+    return anyRow[idColumn];
+  }
 
   function updateCell(column: string, value: string) {
     setNewRow((prev) => {
@@ -338,6 +352,34 @@ export function EditableAiGrid({
         <table className="min-w-full text-sm">
           <thead className="bg-slate-900/80">
             <tr>
+              {enableRowSelection && (
+                <th
+                  className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
+                >
+                  <input
+                    type="checkbox"
+                    aria-label="Select all rows"
+                    checked={
+                      filteredRows.length > 0 &&
+                      filteredRows.every((row) =>
+                        selectedIds.includes(getRowId(row))
+                      )
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const allIds = filteredRows.map((row) =>
+                          getRowId(row)
+                        );
+                        setSelectedIds(allIds);
+                        onSelectionChange?.(allIds);
+                      } else {
+                        setSelectedIds([]);
+                        onSelectionChange?.([]);
+                      }
+                    }}
+                  />
+                </th>
+              )}
               <th
                 className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
               >
@@ -373,6 +415,9 @@ export function EditableAiGrid({
           </thead>
           <tbody>
             <tr className="bg-slate-900/60">
+              {enableRowSelection && (
+                <td className="px-3 py-2 border-t border-slate-700 align-top" />
+              )}
               <td className="px-3 py-2 border-t border-slate-700 align-top">
                 <button
                   type="button"
@@ -420,6 +465,30 @@ export function EditableAiGrid({
                   rowIndex % 2 === 0 ? "bg-slate-900/40" : "bg-slate-900/10"
                 }
               >
+                {enableRowSelection && (
+                  <td className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select row ${rowIndex + 1}`}
+                      checked={selectedIds.includes(getRowId(row))}
+                      onChange={(e) => {
+                        const id = getRowId(row);
+                        setSelectedIds((prev) => {
+                          let next: unknown[];
+                          if (e.target.checked) {
+                            next = prev.includes(id)
+                              ? prev
+                              : [...prev, id];
+                          } else {
+                            next = prev.filter((x) => x !== id);
+                          }
+                          onSelectionChange?.(next);
+                          return next;
+                        });
+                      }}
+                    />
+                  </td>
+                )}
                 <td className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap">
                   {editingRowIndex === rowIndex ? (
                     <div className="flex gap-2">

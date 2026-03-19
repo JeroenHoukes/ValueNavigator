@@ -14,6 +14,8 @@ export function AIData2WithAuth() {
   const [lookupOptions, setLookupOptions] = useState<
     { value: string; label: string }[]
   >([]);
+  const [selectedIds, setSelectedIds] = useState<unknown[]>([]);
+  const [bulkLookupId, setBulkLookupId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -227,6 +229,60 @@ export function AIData2WithAuth() {
           for your user (table_ai2).
         </p>
       </header>
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm">
+          <span className="text-slate-200">
+            Bulk update lookup for{" "}
+            <span className="font-semibold">{selectedIds.length}</span>{" "}
+            selected row{selectedIds.length > 1 ? "s" : ""}:
+          </span>
+          <select
+            value={bulkLookupId}
+            onChange={(e) => setBulkLookupId(e.target.value)}
+            className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
+          >
+            <option value="">Select Lookup</option>
+            {lookupOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!bulkLookupId}
+            onClick={async () => {
+              if (!bulkLookupId || selectedIds.length === 0 || !accessToken)
+                return;
+              try {
+                const res = await fetch("/api/ai-data2/bulk-lookup", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`
+                  },
+                  body: JSON.stringify({
+                    ids: selectedIds,
+                    lookupId: bulkLookupId
+                  })
+                });
+                if (!res.ok) {
+                  console.error("Bulk update failed", await res.text());
+                  return;
+                }
+                setBulkLookupId("");
+                setSelectedIds([]);
+                loadData();
+              } catch (err) {
+                console.error("Bulk update error", err);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+          >
+            Apply to selected
+          </button>
+        </div>
+      )}
       <EditableAiGrid
         columns={orderedColumns}
         rows={rows}
@@ -237,6 +293,9 @@ export function AIData2WithAuth() {
           LookupName: { options: lookupOptions }
         }}
         hiddenColumns={["LookupId", "LookupID", "lookupID", "LastUpdate"]}
+        enableRowSelection
+        onSelectionChange={setSelectedIds}
+        rowIdColumn="id"
       />
     </div>
   );
