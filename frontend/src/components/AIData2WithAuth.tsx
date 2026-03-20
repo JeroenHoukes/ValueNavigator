@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { ChangeEvent } from "react";
 import { useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { sqlScope } from "@/config/msalConfig";
 import { EditableAiGrid } from "@/components/EditableAiGrid";
+import {
+  downloadTableAi2Excel,
+  parseTableAi2Workbook,
+  rowToInsertValues,
+  rowToUpdateValues,
+  isRowEmpty,
+  parseId
+} from "@/lib/aiData2Excel";
 
 type TableAiRow = { [key: string]: unknown };
 type UndoItem = { id: unknown; values: Record<string, unknown> };
@@ -25,6 +34,12 @@ export function AIData2WithAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+  const [excelImport, setExcelImport] = useState<{
+    status: "idle" | "running" | "done" | "error";
+    message?: string;
+    detail?: string;
+  }>({ status: "idle" });
 
   const isAuthenticated = accounts.length > 0;
   const isLoginInProgress =
@@ -227,21 +242,196 @@ export function AIData2WithAuth() {
     ? "LookupId"
     : "lookupID";
 
+  const handleExcelExport = () => {
+    downloadTableAi2Excel(
+      rows as Record<string, unknown>[],
+      lookupOptions,
+      lookupIdColumnName
+    );
+  };
+
+  const handleExcelImport = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !accessToken) return;
+
+    setExcelImport({ status: "running", message: "Importing…" });
+    try {
+      const buf = await file.arrayBuffer();
+      const { rows: parsedRows, error: parseErr } = parseTableAi2Workbook(buf);
+      if (parseErr) {
+        setExcelImport({ status: "error", message: parseErr });
+        return;
+      }
+
+      let inserted = 0;
+      let updated = 0;
+      let skipped = 0;
+      const failed: string[] = [];
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      };
+
+      for (let i = 0; i < parsedRows.length; i++) {
+        const row = parsedRows[i];
+        const sheetRowNum = i + 2;
+        if (isRowEmpty(row)) {
+          skipped++;
+          continue;
+        }
+
+        const id = parseId(row.id);
+
+        if (id === null) {
+          const values = rowToInsertValues(
+            row,
+            lookupOptions,
+            lookupIdColumnName
+          );
+          if (Object.keys(values).length === 0) {
+            skipped++;
+            continue;
+          }
+          const res = await fetch("/api/ai-data2", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ values })
+          });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            failed.push(
+              `Row ${sheetRowNum}: ${body.error ?? res.statusText}`
+            );
+            continue;
+          }
+          inserted++;
+          continue;
+        }
+
+        const values = rowToUpdateValues(
+          row,
+          lookupOptions,
+          lookupIdColumnName
+        );
+        if (Object.keys(values).length === 0) {
+          skipped++;
+          continue;
+        }
+
+        const res = await fetch("/api/ai-data2", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            keyColumn: "id",
+            keyValue: id,
+            values
+          })
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          failed.push(
+            `Row ${sheetRowNum}: ${body.error ?? res.statusText}`
+          );
+          continue;
+        }
+        updated++;
+      }
+
+      const detail =
+        failed.length > 0
+          ? `${failed.slice(0, 8).join("; ")}${
+              failed.length > 8 ? ` … +${failed.length - 8} more` : ""
+            }`
+          : undefined;
+
+      setExcelImport({
+        status: "done",
+        message: `Import finished: ${inserted} inserted, ${updated} updated, ${skipped} skipped.${failed.length ? ` ${failed.length} row(s) failed.` : ""}`,
+        detail
+      });
+      loadData();
+    } catch (err) {
+      setExcelImport({
+        status: "error",
+        message: err instanceof Error ? err.message : "Import failed."
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-2xl font-semibold">AI Data 2 (table_ai2)</h2>
-          <span className="text-sm text-slate-400">
-            Signed in as{" "}
-            <span className="font-mono">{accounts[0]?.username}</span>
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExcelExport}
+              className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+            >
+              Export Excel
+            </button>
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleExcelImport}
+            />
+            <button
+              type="button"
+              onClick={() => excelInputRef.current?.click()}
+              disabled={excelImport.status === "running"}
+              className="rounded-lg border border-emerald-700 bg-emerald-900/40 px-3 py-1.5 text-xs font-medium text-emerald-100 hover:bg-emerald-900/60 disabled:opacity-50"
+            >
+              {excelImport.status === "running" ? "Importing…" : "Import Excel"}
+            </button>
+            <span className="text-sm text-slate-400">
+              Signed in as{" "}
+              <span className="font-mono">{accounts[0]?.username}</span>
+            </span>
+          </div>
         </div>
         <p className="text-slate-300 max-w-2xl">
           Data from the ValueNavigator database on Azure SQL (
           <span className="font-mono">leefserver.database.windows.net</span>)
           for your user (table_ai2).
         </p>
+        <p className="text-xs text-slate-500 max-w-3xl">
+          <span className="font-medium text-slate-400">Excel:</span> Export
+          downloads the first sheet format (columns: id, Col1, Col2, TenantID,
+          lookupID, LookupName). Edit or add rows: leave{" "}
+          <span className="font-mono">id</span> empty to insert; keep{" "}
+          <span className="font-mono">id</span> to update. You may set lookup by{" "}
+          <span className="font-mono">lookupID</span> or by{" "}
+          <span className="font-mono">LookupName</span> label. Then use Import
+          Excel to apply changes.
+        </p>
+        {excelImport.status !== "idle" && excelImport.status !== "running" && (
+          <div
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              excelImport.status === "error"
+                ? "border-red-700 bg-red-900/30 text-red-100"
+                : "border-emerald-800 bg-emerald-950/40 text-emerald-100"
+            }`}
+          >
+            <p>{excelImport.message}</p>
+            {excelImport.detail && (
+              <p className="mt-1 font-mono text-xs break-all text-slate-300">
+                {excelImport.detail}
+              </p>
+            )}
+          </div>
+        )}
+        {excelImport.status === "running" && (
+          <p className="text-sm text-slate-400">Importing spreadsheet…</p>
+        )}
       </header>
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm">
@@ -383,6 +573,7 @@ export function AIData2WithAuth() {
         rows={rows}
         accessToken={accessToken}
         endpoint="/api/ai-data2"
+        keyColumn="id"
         onDataChanged={loadData}
         selectColumns={{
           LookupName: { options: lookupOptions }

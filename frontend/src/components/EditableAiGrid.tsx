@@ -586,24 +586,9 @@ export function EditableAiGrid({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isPending}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand/90 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isPending ? "Saving..." : "Save new row"}
-        </button>
-        {error && (
-          <p className="text-xs text-red-300 max-w-md break-all">{error}</p>
-        )}
-      </div>
-      <p className="text-xs text-slate-400 max-w-md">
-        Type values for the new row directly in the bottom grid row, then click{" "}
-        <span className="font-medium">Save new row</span>. Columns left empty
-        will use their default values.
-      </p>
+      {error && (
+        <p className="text-xs text-red-300 max-w-md break-all">{error}</p>
+      )}
     </div>
   );
 }
