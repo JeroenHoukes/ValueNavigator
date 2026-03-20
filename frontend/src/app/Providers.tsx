@@ -28,7 +28,8 @@ const overviewItems = [
   { href: "/scenarios", label: "Scenarios" },
   { href: "/journeys", label: "Journeys" },
   { href: "/ai-data", label: "AI Data" },
-  { href: "/ai-data2", label: "AI Data 2" }
+  { href: "/ai-data2", label: "AI Data 2" },
+  { href: "/milestone", label: "Milestones" }
 ] as const;
 
 function isCreateNewActive(pathname: string) {
@@ -47,6 +48,7 @@ function isOverviewActive(pathname: string) {
     pathname === "/scenarios" ||
     pathname === "/ai-data" ||
     pathname === "/ai-data2" ||
+    pathname === "/milestone" ||
     pathname === "/journeys" ||
     pathname === "/journey" ||
     (pathname.startsWith("/scenarios/") &&
