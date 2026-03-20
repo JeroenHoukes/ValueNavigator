@@ -30,6 +30,7 @@ export function MilestoneWithAuth() {
     message?: string;
     detail?: string;
   }>({ status: "idle" });
+  const [selectedIds, setSelectedIds] = useState<unknown[]>([]);
 
   const isAuthenticated = accounts.length > 0;
   const isLoginInProgress =
@@ -350,6 +351,54 @@ export function MilestoneWithAuth() {
           <p className="text-sm text-slate-400">Importing spreadsheet…</p>
         )}
       </header>
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm">
+          <span className="text-slate-200">
+            <span className="font-semibold">{selectedIds.length}</span> row
+            {selectedIds.length > 1 ? "s" : ""} selected
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              if (selectedIds.length === 0 || !accessToken) return;
+              // eslint-disable-next-line no-alert
+              if (
+                !window.confirm(
+                  `Delete ${selectedIds.length} selected row${
+                    selectedIds.length > 1 ? "s" : ""
+                  }? This cannot be undone.`
+                )
+              ) {
+                return;
+              }
+              try {
+                const res = await fetch("/api/milestone/bulk-delete", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`
+                  },
+                  body: JSON.stringify({
+                    ids: selectedIds,
+                    keyColumn
+                  })
+                });
+                if (!res.ok) {
+                  console.error("Bulk delete failed", await res.text());
+                  return;
+                }
+                setSelectedIds([]);
+                loadData();
+              } catch (err) {
+                console.error("Bulk delete error", err);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded bg-red-700 px-3 py-1 text-xs font-medium text-white hover:bg-red-600"
+          >
+            Delete selected
+          </button>
+        </div>
+      )}
       <EditableAiGrid
         columns={orderedColumns}
         rows={rows}
@@ -358,6 +407,8 @@ export function MilestoneWithAuth() {
         keyColumn={keyColumn}
         onDataChanged={loadData}
         hiddenColumns={["LastUpdate", "LastUpd", "lastupd"]}
+        enableRowSelection
+        onSelectionChange={setSelectedIds}
         rowIdColumn={keyColumn}
       />
     </div>

@@ -528,6 +528,47 @@ export function AIData2WithAuth() {
           >
             Apply to selected
           </button>
+          <span className="text-slate-600" aria-hidden>
+            |
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              if (selectedIds.length === 0 || !accessToken) return;
+              // eslint-disable-next-line no-alert
+              if (
+                !window.confirm(
+                  `Delete ${selectedIds.length} selected row${
+                    selectedIds.length > 1 ? "s" : ""
+                  }? This cannot be undone.`
+                )
+              ) {
+                return;
+              }
+              try {
+                const res = await fetch("/api/ai-data2/bulk-delete", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`
+                  },
+                  body: JSON.stringify({ ids: selectedIds })
+                });
+                if (!res.ok) {
+                  console.error("Bulk delete failed", await res.text());
+                  return;
+                }
+                setSelectedIds([]);
+                setLastBulkUndoItems(null);
+                loadData();
+              } catch (err) {
+                console.error("Bulk delete error", err);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded bg-red-700 px-3 py-1 text-xs font-medium text-white hover:bg-red-600"
+          >
+            Delete selected
+          </button>
         </div>
       )}
       {lastBulkUndoItems && lastBulkUndoItems.length > 0 && (
