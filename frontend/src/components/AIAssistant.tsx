@@ -74,6 +74,11 @@ function getHelpResponse(userMessage: string, pathname: string): HelpResponse {
   }
 
   const navPatterns: { pattern: RegExp; href: string; label: string }[] = [
+    {
+      pattern: /user guide|help page|documentation|how does (vn|value navigator)/i,
+      href: "/user-guide",
+      label: "User guide"
+    },
     { pattern: /gantt|milestone|timeline/, href: "/gantt", label: "Open Gantt" },
     { pattern: /scenario builder|building block|pipeline|add block/, href: "/scenarios/builder", label: "Open Scenario Builder" },
     { pattern: /import excel|upload excel|xlsx|import.*excel/, href: "/scenarios/import", label: "Import Excel" },

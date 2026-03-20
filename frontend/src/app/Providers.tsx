@@ -99,6 +99,16 @@ function HeaderAndMain({ children }: { children: ReactNode }) {
             >
               Home
             </Link>
+            <Link
+              href="/user-guide"
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === "/user-guide"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/70"
+              }`}
+            >
+              User guide
+            </Link>
             <div className="relative">
               <button
                 type="button"
