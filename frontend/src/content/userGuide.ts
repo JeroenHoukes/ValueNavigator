@@ -13,16 +13,45 @@ export type GuideBlock =
   | { type: "ul"; items: string[] }
   | { type: "note"; text: string };
 
+/** Exported from User Guide 0.2.pptx (ppt/media), served from /public/user-guide */
+export type GuideMediaItem = {
+  src: string;
+  alt: string;
+};
+
+/**
+ * beside-text: on large screens, text and images sit in two columns (like most slides).
+ * icon-grid: many small images (e.g. icon legend) in a responsive grid next to the text.
+ */
+export type GuideMediaLayout =
+  | "beside-text"
+  | "icon-grid"
+  | "above"
+  | "below";
+
 export type GuideSection = {
   id: string;
   title: string;
   blocks: GuideBlock[];
+  /** Slide imagery; paths are under /user-guide/… */
+  media?: GuideMediaItem[];
+  mediaLayout?: GuideMediaLayout;
+  /** For beside-text: which side the images appear on desktop (default right). */
+  mediaSide?: "left" | "right";
 };
 
 export const userGuideSections: GuideSection[] = [
   {
     id: "welcome",
     title: "Welcome",
+    media: [
+      {
+        src: "/user-guide/welcome.png",
+        alt: "Value Navigator user guide title slide graphic from the original presentation"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "p",
@@ -80,6 +109,14 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "improvements",
     title: "Improvements — ideas, initiatives & plans",
+    media: [
+      {
+        src: "/user-guide/improvements.png",
+        alt: "Slide diagram: improvements and initiatives in Value Navigator"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",
@@ -140,6 +177,10 @@ export const userGuideSections: GuideSection[] = [
           "Forecasts show how different projects (baseline & improvement ideas) impact the forecast.",
           "The data is richer than simple examples; ValueDashboard is a more sophisticated analysis tool."
         ]
+      },
+      {
+        type: "note",
+        text: "The original slide includes an Excel-based chart embedded as an EMF graphic, which web browsers cannot display here. Open User Guide 0.2 in PowerPoint to see that figure."
       }
     ]
   },
@@ -166,6 +207,18 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "how-to-use-this-guide",
     title: "How to use this guide",
+    media: [
+      {
+        src: "/user-guide/guide-ui-links.png",
+        alt: "UI: links for start of section, back, and main menu"
+      },
+      {
+        src: "/user-guide/guide-ui-prev-next.png",
+        alt: "UI: previous and next slide controls"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",
@@ -194,6 +247,19 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "icons",
     title: "Icons & actions",
+    media: [
+      { src: "/user-guide/icon-legend-01.png", alt: "Navigator icon" },
+      { src: "/user-guide/icon-legend-02.png", alt: "Save icon" },
+      { src: "/user-guide/icon-legend-03.png", alt: "Duplicate icon" },
+      { src: "/user-guide/icon-legend-04.png", alt: "Delete icon" },
+      { src: "/user-guide/icon-legend-05.png", alt: "Drill down icon" },
+      { src: "/user-guide/icon-legend-06.png", alt: "Back icon" },
+      { src: "/user-guide/icon-legend-07.png", alt: "Refresh icon" },
+      { src: "/user-guide/icon-legend-08.png", alt: "Expand icon" },
+      { src: "/user-guide/icon-legend-09.png", alt: "Additional toolbar icon" }
+    ],
+    mediaLayout: "icon-grid",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",
@@ -213,6 +279,18 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "lists",
     title: "Lists",
+    media: [
+      {
+        src: "/user-guide/lists-deselect.png",
+        alt: "List UI: click to clear the current selection"
+      },
+      {
+        src: "/user-guide/lists-filter.png",
+        alt: "List UI: type to filter the list"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",
@@ -249,6 +327,14 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "login",
     title: "Login",
+    media: [
+      {
+        src: "/user-guide/login.png",
+        alt: "Value Navigator login screen"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "p",
@@ -259,6 +345,18 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "navigate",
     title: "Navigate",
+    media: [
+      {
+        src: "/user-guide/navigate-quick-menu.png",
+        alt: "Navigate button opening the quick menu"
+      },
+      {
+        src: "/user-guide/navigate-inset.png",
+        alt: "Navigate control detail"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "p",
@@ -269,6 +367,18 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "search",
     title: "Search",
+    media: [
+      {
+        src: "/user-guide/search-field.png",
+        alt: "Search: entering criteria and running the search"
+      },
+      {
+        src: "/user-guide/search-results.png",
+        alt: "Search: results grouped by record type with drill-down"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",
@@ -322,6 +432,14 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "create-product",
     title: "Create a product",
+    media: [
+      {
+        src: "/user-guide/create-product.png",
+        alt: "Create product screen in Value Navigator"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",
@@ -350,6 +468,14 @@ export const userGuideSections: GuideSection[] = [
   {
     id: "one-off-charges",
     title: "One-off charges & costs",
+    media: [
+      {
+        src: "/user-guide/one-off-charges.png",
+        alt: "One-off charges screen with cost categories"
+      }
+    ],
+    mediaLayout: "beside-text",
+    mediaSide: "right",
     blocks: [
       {
         type: "ul",

@@ -1,12 +1,41 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   userGuideSections,
   USER_GUIDE_META,
   type GuideBlock,
   type GuideSection
 } from "@/content/userGuide";
+
+function MediaGallery({ section }: { section: GuideSection }) {
+  const media = section.media ?? [];
+  if (!media.length) return null;
+  const layout = section.mediaLayout ?? "beside-text";
+  const isGrid = layout === "icon-grid";
+  return (
+    <div
+      className={
+        isGrid
+          ? "grid grid-cols-2 sm:grid-cols-3 gap-2 w-full max-w-md mx-auto lg:mx-0"
+          : "flex flex-col gap-4 w-full"
+      }
+    >
+      {media.map((m) => (
+        <figure key={m.src} className="m-0">
+          {/* eslint-disable-next-line @next/next/no-img-element -- static files from /public with dynamic paths */}
+          <img
+            src={m.src}
+            alt={m.alt}
+            className="w-full h-auto rounded-lg border border-slate-700 bg-slate-950/50 shadow-sm"
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+      ))}
+    </div>
+  );
+}
 
 function BlockView({ block }: { block: GuideBlock }) {
   if (block.type === "p") {
@@ -43,6 +72,54 @@ function SectionCard({
   const next =
     index < userGuideSections.length - 1 ? userGuideSections[index + 1] : null;
 
+  const media = section.media ?? [];
+  const hasMedia = media.length > 0;
+  const layout = section.mediaLayout ?? "beside-text";
+  const side = section.mediaSide ?? "right";
+
+  const textColumn = (
+    <div className="flex-1 min-w-0 space-y-4">
+      {section.blocks.map((b, i) => (
+        <BlockView key={i} block={b} />
+      ))}
+    </div>
+  );
+
+  const gallery = hasMedia ? <MediaGallery section={section} /> : null;
+
+  let body: ReactNode;
+  if (!hasMedia) {
+    body = textColumn;
+  } else if (layout === "above") {
+    body = (
+      <>
+        <div className="mb-6">{gallery}</div>
+        {textColumn}
+      </>
+    );
+  } else if (layout === "below") {
+    body = (
+      <>
+        {textColumn}
+        <div className="mt-6">{gallery}</div>
+      </>
+    );
+  } else {
+    // beside-text and icon-grid: two columns on large screens (like the slides)
+    body = (
+      <div
+        className={`flex flex-col gap-6 lg:gap-8 lg:items-start ${
+          side === "left" ? "lg:flex-row-reverse" : "lg:flex-row"
+        }`}
+      >
+        {textColumn}
+        <div className="flex-1 min-w-0 lg:max-w-[min(100%,560px)] shrink-0">
+          {gallery}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <article
       id={section.id}
@@ -51,11 +128,7 @@ function SectionCard({
       <h2 className="text-xl font-semibold text-white border-b border-slate-700 pb-2">
         {section.title}
       </h2>
-      <div className="space-y-4">
-        {section.blocks.map((b, i) => (
-          <BlockView key={i} block={b} />
-        ))}
-      </div>
+      {body}
       <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-800">
         {prev ? (
           <button
