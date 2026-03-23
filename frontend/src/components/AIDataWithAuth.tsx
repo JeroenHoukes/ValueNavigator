@@ -5,6 +5,7 @@ import { useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { sqlScope } from "@/config/msalConfig";
 import { EditableAiGrid } from "@/components/EditableAiGrid";
+import { TopNoticeBar } from "@/components/TopNoticeBar";
 
 type TableAiRow = { [key: string]: unknown };
 
@@ -14,6 +15,11 @@ export function AIDataWithAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    variant: "success" | "error";
+    message: string;
+  } | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   const isAuthenticated = accounts.length > 0;
   const isLoginInProgress = inProgress === InteractionStatus.Login || inProgress === InteractionStatus.Startup;
@@ -169,7 +175,24 @@ export function AIDataWithAuth() {
         accessToken={accessToken}
         endpoint="/api/ai-data"
         onDataChanged={loadData}
+        onErrorMessage={(message) => {
+          setNotice({
+            variant: "error",
+            message: `Could not complete action\n\n${message}`
+          });
+        }}
+        onSuccessMessage={(message) => {
+          setNotice({ variant: "success", message });
+        }}
       />
+      {notice && (
+        <TopNoticeBar
+          variant={notice.variant}
+          message={notice.message}
+          onDismiss={clearNotice}
+          durationMs={notice.variant === "error" ? 8800 : 4200}
+        />
+      )}
     </div>
   );
 }

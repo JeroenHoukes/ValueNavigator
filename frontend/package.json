@@ -10,7 +10,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "schema:azure": "node ../database/introspect-azure-schema.cjs",
+    "schema:workbook": "node ../database/build-schema-workbook.cjs"
   },
   "dependencies": {
     "@azure/msal-browser": "^3.24.0",

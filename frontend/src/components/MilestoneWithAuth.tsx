@@ -5,7 +5,11 @@ import type { ChangeEvent } from "react";
 import { useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { sqlScope } from "@/config/msalConfig";
-import { EditableAiGrid } from "@/components/EditableAiGrid";
+import {
+  EditableAiGrid,
+  type EditableGridUndoPayload,
+  type RowBlankFilterMode
+} from "@/components/EditableAiGrid";
 import {
   downloadMilestoneExcel,
   parseMilestoneWorkbook,
@@ -15,6 +19,26 @@ import {
   inferMilestoneKeyColumn,
   hasMilestoneKey
 } from "@/lib/milestoneExcel";
+import { formatApiErrorBody } from "@/lib/apiErrorMessage";
+import { TopNoticeBar } from "@/components/TopNoticeBar";
+
+type MilestoneUndoState =
+  | {
+      kind: "update";
+      keyColumn: string;
+      keyValue: unknown;
+      previousRow: Record<string, unknown>;
+    }
+  | { kind: "delete"; keyColumn: string; row: Record<string, unknown> }
+  | { kind: "bulk-delete"; keyColumn: string; rows: Record<string, unknown>[] };
+
+function rowToRestoreInsertValues(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    out[k] = v === undefined ? null : v;
+  }
+  return out;
+}
 
 type MilestoneRow = { [key: string]: unknown };
 
@@ -31,6 +55,14 @@ export function MilestoneWithAuth() {
     detail?: string;
   }>({ status: "idle" });
   const [selectedIds, setSelectedIds] = useState<unknown[]>([]);
+  const [rowBlankFilter, setRowBlankFilter] =
+    useState<RowBlankFilterMode>("none");
+  const [lastUndo, setLastUndo] = useState<MilestoneUndoState | null>(null);
+  const [notice, setNotice] = useState<{
+    variant: "success" | "error";
+    message: string;
+  } | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   const isAuthenticated = accounts.length > 0;
   const isLoginInProgress =
@@ -361,12 +393,19 @@ export function MilestoneWithAuth() {
             type="button"
             onClick={async () => {
               if (selectedIds.length === 0 || !accessToken) return;
+              const deleteCount = selectedIds.length;
+              const rowsSnapshot = rows.filter((r) =>
+                selectedIds.some(
+                  (id) =>
+                    id === (r as Record<string, unknown>)[keyColumn]
+                )
+              );
               // eslint-disable-next-line no-alert
               if (
                 !window.confirm(
                   `Delete ${selectedIds.length} selected row${
                     selectedIds.length > 1 ? "s" : ""
-                  }? This cannot be undone.`
+                  }? You can undo once with “Undo last action”.`
                 )
               ) {
                 return;
@@ -383,11 +422,31 @@ export function MilestoneWithAuth() {
                     keyColumn
                   })
                 });
+                const body = (await res.json().catch(() => ({}))) as {
+                  error?: string;
+                  details?: string;
+                };
                 if (!res.ok) {
-                  console.error("Bulk delete failed", await res.text());
+                  const head =
+                    res.status === 409 ? "Delete blocked" : "Delete failed";
+                  setNotice({
+                    variant: "error",
+                    message: `${head}\n\n${formatApiErrorBody(body, "Bulk delete failed.")}`
+                  });
                   return;
                 }
+                setLastUndo({
+                  kind: "bulk-delete",
+                  keyColumn,
+                  rows: rowsSnapshot.map((r) => ({ ...(r as Record<string, unknown>) }))
+                });
                 setSelectedIds([]);
+                setNotice({
+                  variant: "success",
+                  message: `${deleteCount} row${
+                    deleteCount === 1 ? "" : "s"
+                  } deleted successfully.`
+                });
                 loadData();
               } catch (err) {
                 console.error("Bulk delete error", err);
@@ -396,6 +455,134 @@ export function MilestoneWithAuth() {
             className="inline-flex items-center gap-1 rounded bg-red-700 px-3 py-1 text-xs font-medium text-white hover:bg-red-600"
           >
             Delete selected
+          </button>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
+        <label htmlFor="milestone-blank-filter" className="text-slate-400">
+          Blank cells
+        </label>
+        <select
+          id="milestone-blank-filter"
+          value={rowBlankFilter}
+          onChange={(e) =>
+            setRowBlankFilter(e.target.value as RowBlankFilterMode)
+          }
+          className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-white"
+        >
+          <option value="none">Show all rows</option>
+          <option value="any-column-empty">Any column empty</option>
+          <option value="all-data-empty">
+            All columns empty (except key: {keyColumn})
+          </option>
+        </select>
+        <span className="text-xs text-slate-500">
+          In a column filter, type{" "}
+          <span className="font-mono text-slate-400">(blank)</span> to show
+          only rows empty in that column.
+        </span>
+      </div>
+      {lastUndo && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-700 bg-amber-950/30 px-3 py-2 text-sm">
+          <span className="text-amber-100">
+            {lastUndo.kind === "update" && "Last action: row edit."}
+            {lastUndo.kind === "delete" && "Last action: row deleted."}
+            {lastUndo.kind === "bulk-delete" &&
+              `Last action: ${lastUndo.rows.length} row${
+                lastUndo.rows.length > 1 ? "s" : ""
+              } deleted.`}
+          </span>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!lastUndo || !accessToken) return;
+              const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`
+              };
+              try {
+                if (lastUndo.kind === "update") {
+                  const values: Record<string, unknown> = {};
+                  for (const [k, v] of Object.entries(lastUndo.previousRow)) {
+                    if (k === lastUndo.keyColumn) continue;
+                    values[k] = v === undefined ? null : v;
+                  }
+                  const res = await fetch("/api/milestone", {
+                    method: "PUT",
+                    headers,
+                    body: JSON.stringify({
+                      keyColumn: lastUndo.keyColumn,
+                      keyValue: lastUndo.keyValue,
+                      values
+                    })
+                  });
+                  if (!res.ok) {
+                    const b = (await res.json().catch(() => ({}))) as {
+                      error?: string;
+                      details?: string;
+                    };
+                    setNotice({
+                      variant: "error",
+                      message: `Undo failed\n\n${formatApiErrorBody(b, "Could not restore row.")}`
+                    });
+                    return;
+                  }
+                } else if (lastUndo.kind === "delete") {
+                  const res = await fetch("/api/milestone", {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify({
+                      values: rowToRestoreInsertValues(lastUndo.row)
+                    })
+                  });
+                  if (!res.ok) {
+                    const b = (await res.json().catch(() => ({}))) as {
+                      error?: string;
+                      details?: string;
+                    };
+                    setNotice({
+                      variant: "error",
+                      message: `Undo failed\n\n${formatApiErrorBody(b, "Could not re-insert row.")}`
+                    });
+                    return;
+                  }
+                } else {
+                  for (const r of lastUndo.rows) {
+                    const res = await fetch("/api/milestone", {
+                      method: "POST",
+                      headers,
+                      body: JSON.stringify({
+                        values: rowToRestoreInsertValues(
+                          r as Record<string, unknown>
+                        )
+                      })
+                    });
+                    if (!res.ok) {
+                      const b = (await res.json().catch(() => ({}))) as {
+                        error?: string;
+                        details?: string;
+                      };
+                      setNotice({
+                        variant: "error",
+                        message: `Undo failed\n\n${formatApiErrorBody(b, "Could not restore deleted rows.")}`
+                      });
+                      return;
+                    }
+                  }
+                }
+                setLastUndo(null);
+                setNotice({
+                  variant: "success",
+                  message: "Undo completed successfully."
+                });
+                loadData();
+              } catch (err) {
+                console.error("Undo error", err);
+              }
+            }}
+            className="inline-flex items-center gap-1 rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-500"
+          >
+            Undo last action
           </button>
         </div>
       )}
@@ -410,7 +597,43 @@ export function MilestoneWithAuth() {
         enableRowSelection
         onSelectionChange={setSelectedIds}
         rowIdColumn={keyColumn}
+        enableBlankTokenFilter
+        rowBlankFilter={rowBlankFilter}
+        columnFilterPlaceholder="Filter… or (blank)"
+        onMutationSuccess={(payload: EditableGridUndoPayload) => {
+          if (payload.type === "update") {
+            setLastUndo({
+              kind: "update",
+              keyColumn: payload.keyColumn,
+              keyValue: payload.keyValue,
+              previousRow: { ...payload.previousRow }
+            });
+          } else {
+            setLastUndo({
+              kind: "delete",
+              keyColumn: payload.keyColumn,
+              row: { ...payload.row }
+            });
+          }
+        }}
+        onErrorMessage={(message) => {
+          setNotice({
+            variant: "error",
+            message: `Could not complete action\n\n${message}`
+          });
+        }}
+        onSuccessMessage={(message) => {
+          setNotice({ variant: "success", message });
+        }}
       />
+      {notice && (
+        <TopNoticeBar
+          variant={notice.variant}
+          message={notice.message}
+          onDismiss={clearNotice}
+          durationMs={notice.variant === "error" ? 8800 : 4200}
+        />
+      )}
     </div>
   );
 }

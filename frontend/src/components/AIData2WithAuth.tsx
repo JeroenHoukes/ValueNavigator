@@ -6,6 +6,8 @@ import { useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { sqlScope } from "@/config/msalConfig";
 import { EditableAiGrid } from "@/components/EditableAiGrid";
+import { TopNoticeBar } from "@/components/TopNoticeBar";
+import { formatApiErrorBody } from "@/lib/apiErrorMessage";
 import {
   downloadTableAi2Excel,
   parseTableAi2Workbook,
@@ -40,6 +42,11 @@ export function AIData2WithAuth() {
     message?: string;
     detail?: string;
   }>({ status: "idle" });
+  const [notice, setNotice] = useState<{
+    variant: "success" | "error";
+    message: string;
+  } | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   const isAuthenticated = accounts.length > 0;
   const isLoginInProgress =
@@ -261,6 +268,10 @@ export function AIData2WithAuth() {
       const { rows: parsedRows, error: parseErr } = parseTableAi2Workbook(buf);
       if (parseErr) {
         setExcelImport({ status: "error", message: parseErr });
+        setNotice({
+          variant: "error",
+          message: `Excel import\n\n${parseErr}`
+        });
         return;
       }
 
@@ -350,16 +361,23 @@ export function AIData2WithAuth() {
             }`
           : undefined;
 
+      const summary = `Import finished: ${inserted} inserted, ${updated} updated, ${skipped} skipped.${failed.length ? ` ${failed.length} row(s) failed.` : ""}`;
       setExcelImport({
         status: "done",
-        message: `Import finished: ${inserted} inserted, ${updated} updated, ${skipped} skipped.${failed.length ? ` ${failed.length} row(s) failed.` : ""}`,
+        message: summary,
         detail
       });
+      setNotice({ variant: "success", message: summary });
       loadData();
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Import failed.";
       setExcelImport({
         status: "error",
-        message: err instanceof Error ? err.message : "Import failed."
+        message: msg
+      });
+      setNotice({
+        variant: "error",
+        message: `Excel import\n\n${msg}`
       });
     }
   };
@@ -475,6 +493,7 @@ export function AIData2WithAuth() {
             }
             onClick={async () => {
               if (selectedIds.length === 0 || !accessToken) return;
+              const bulkCount = selectedIds.length;
               const updates: Record<string, unknown> = {};
               if (bulkCol1.trim() !== "") updates.Col1 = bulkCol1.trim();
               if (bulkCol2.trim() !== "") updates.Col2 = bulkCol2.trim();
@@ -510,8 +529,15 @@ export function AIData2WithAuth() {
                     updates
                   })
                 });
+                const errBody = (await res.json().catch(() => ({}))) as {
+                  error?: string;
+                  details?: string;
+                };
                 if (!res.ok) {
-                  console.error("Bulk update failed", await res.text());
+                  setNotice({
+                    variant: "error",
+                    message: `Bulk update failed\n\n${formatApiErrorBody(errBody, "Bulk update failed.")}`
+                  });
                   return;
                 }
                 setLastBulkUndoItems(undoItems);
@@ -519,6 +545,12 @@ export function AIData2WithAuth() {
                 setBulkCol2("");
                 setBulkLookupId("");
                 setSelectedIds([]);
+                setNotice({
+                  variant: "success",
+                  message: `Bulk update applied to ${bulkCount} row${
+                    bulkCount === 1 ? "" : "s"
+                  } successfully.`
+                });
                 loadData();
               } catch (err) {
                 console.error("Bulk update error", err);
@@ -535,11 +567,12 @@ export function AIData2WithAuth() {
             type="button"
             onClick={async () => {
               if (selectedIds.length === 0 || !accessToken) return;
+              const deleteCount = selectedIds.length;
               // eslint-disable-next-line no-alert
               if (
                 !window.confirm(
-                  `Delete ${selectedIds.length} selected row${
-                    selectedIds.length > 1 ? "s" : ""
+                  `Delete ${deleteCount} selected row${
+                    deleteCount > 1 ? "s" : ""
                   }? This cannot be undone.`
                 )
               ) {
@@ -554,12 +587,27 @@ export function AIData2WithAuth() {
                   },
                   body: JSON.stringify({ ids: selectedIds })
                 });
+                const body = (await res.json().catch(() => ({}))) as {
+                  error?: string;
+                  details?: string;
+                };
                 if (!res.ok) {
-                  console.error("Bulk delete failed", await res.text());
+                  const head =
+                    res.status === 409 ? "Delete blocked" : "Delete failed";
+                  setNotice({
+                    variant: "error",
+                    message: `${head}\n\n${formatApiErrorBody(body, "Bulk delete failed.")}`
+                  });
                   return;
                 }
                 setSelectedIds([]);
                 setLastBulkUndoItems(null);
+                setNotice({
+                  variant: "success",
+                  message: `${deleteCount} row${
+                    deleteCount === 1 ? "" : "s"
+                  } deleted successfully.`
+                });
                 loadData();
               } catch (err) {
                 console.error("Bulk delete error", err);
@@ -594,10 +642,21 @@ export function AIData2WithAuth() {
                   })
                 });
                 if (!res.ok) {
-                  console.error("Undo failed", await res.text());
+                  const uBody = (await res.json().catch(() => ({}))) as {
+                    error?: string;
+                    details?: string;
+                  };
+                  setNotice({
+                    variant: "error",
+                    message: `Undo failed\n\n${formatApiErrorBody(uBody, "Undo failed.")}`
+                  });
                   return;
                 }
                 setLastBulkUndoItems(null);
+                setNotice({
+                  variant: "success",
+                  message: "Undo completed successfully."
+                });
                 loadData();
               } catch (err) {
                 console.error("Undo error", err);
@@ -623,7 +682,24 @@ export function AIData2WithAuth() {
         enableRowSelection
         onSelectionChange={setSelectedIds}
         rowIdColumn="id"
+        onErrorMessage={(message) => {
+          setNotice({
+            variant: "error",
+            message: `Could not complete action\n\n${message}`
+          });
+        }}
+        onSuccessMessage={(message) => {
+          setNotice({ variant: "success", message });
+        }}
       />
+      {notice && (
+        <TopNoticeBar
+          variant={notice.variant}
+          message={notice.message}
+          onDismiss={clearNotice}
+          durationMs={notice.variant === "error" ? 8800 : 4200}
+        />
+      )}
     </div>
   );
 }

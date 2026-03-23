@@ -2,10 +2,26 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { formatApiErrorBody } from "@/lib/apiErrorMessage";
 
 type TableAiRow = {
   [key: string]: unknown;
 };
+
+export type RowBlankFilterMode =
+  | "none"
+  | "any-column-empty"
+  | "all-data-empty";
+
+/** Fired after a successful row update or delete so the parent can offer undo. */
+export type EditableGridUndoPayload =
+  | {
+      type: "update";
+      keyColumn: string;
+      keyValue: unknown;
+      previousRow: Record<string, unknown>;
+    }
+  | { type: "delete"; keyColumn: string; row: Record<string, unknown> };
 
 type Props = {
   columns: string[];
@@ -24,6 +40,17 @@ type Props = {
   enableRowSelection?: boolean;
   onSelectionChange?: (selectedIds: unknown[]) => void;
   rowIdColumn?: string;
+  /** When true, a column filter of exactly `(blank)` (case-insensitive) keeps only rows with an empty cell in that column. */
+  enableBlankTokenFilter?: boolean;
+  /** Row-level blank filter; key column is excluded from empty checks. */
+  rowBlankFilter?: RowBlankFilterMode;
+  /** Placeholder text on per-column filter inputs. */
+  columnFilterPlaceholder?: string;
+  onMutationSuccess?: (payload: EditableGridUndoPayload) => void;
+  /** When set, errors are shown via this callback (e.g. modal) instead of inline text. */
+  onErrorMessage?: (message: string) => void;
+  /** Called after a successful add, update, or delete (for success popups). */
+  onSuccessMessage?: (message: string) => void;
 };
 
 export function EditableAiGrid({
@@ -37,11 +64,25 @@ export function EditableAiGrid({
   hiddenColumns,
   enableRowSelection,
   onSelectionChange,
-  rowIdColumn
+  rowIdColumn,
+  enableBlankTokenFilter,
+  rowBlankFilter = "none",
+  columnFilterPlaceholder = "Filter...",
+  onMutationSuccess,
+  onErrorMessage,
+  onSuccessMessage
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  function reportUserError(message: string) {
+    if (onErrorMessage) {
+      onErrorMessage(message);
+    } else {
+      setError(message);
+    }
+  }
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
     {}
   );
@@ -114,9 +155,9 @@ export function EditableAiGrid({
 
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as
-          | { error?: string }
+          | { error?: string; details?: string }
           | null;
-        setError(body?.error || "Failed to insert row.");
+        reportUserError(formatApiErrorBody(body, "Failed to insert row."));
         return;
       }
 
@@ -126,13 +167,15 @@ export function EditableAiGrid({
         return cleared;
       });
 
+      onSuccessMessage?.("Row added successfully.");
+
       if (onDataChanged) {
         startTransition(() => {
           onDataChanged();
         });
       }
     } catch (e) {
-      setError(
+      reportUserError(
         e instanceof Error ? e.message : "Unexpected error while adding row."
       );
     }
@@ -172,11 +215,13 @@ export function EditableAiGrid({
     const row = filteredRows[editingRowIndex] as Record<string, unknown>;
     const keyValue = row[effectiveKeyColumn];
     if (keyValue === undefined) {
-      setError(
+      reportUserError(
         `Key column "${effectiveKeyColumn}" not found on the selected row.`
       );
       return;
     }
+
+    const previousRow: Record<string, unknown> = { ...row };
 
     const values: Record<string, unknown> = {};
     for (const col of columns) {
@@ -186,7 +231,7 @@ export function EditableAiGrid({
     }
 
     if (Object.keys(values).length === 0) {
-      setError("No editable columns were changed.");
+      reportUserError("No editable columns were changed.");
       return;
     }
 
@@ -204,21 +249,28 @@ export function EditableAiGrid({
 
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as
-          | { error?: string }
+          | { error?: string; details?: string }
           | null;
-        setError(body?.error || "Failed to update row.");
+        reportUserError(formatApiErrorBody(body, "Failed to update row."));
         return;
       }
 
       setEditingRowIndex(null);
       setEditingRow({});
+      onMutationSuccess?.({
+        type: "update",
+        keyColumn: effectiveKeyColumn,
+        keyValue,
+        previousRow
+      });
+      onSuccessMessage?.("Row updated successfully.");
       if (onDataChanged) {
         startTransition(() => {
           onDataChanged();
         });
       }
     } catch (e) {
-      setError(
+      reportUserError(
         e instanceof Error ? e.message : "Unexpected error while updating row."
       );
     }
@@ -234,11 +286,13 @@ export function EditableAiGrid({
     const row = filteredRows[rowIndex] as Record<string, unknown>;
     const keyValue = row[effectiveKeyColumn];
     if (keyValue === undefined) {
-      setError(
+      reportUserError(
         `Key column "${effectiveKeyColumn}" not found on the selected row.`
       );
       return;
     }
+
+    const rowSnapshot: Record<string, unknown> = { ...row };
 
     try {
       const headers: Record<string, string> = {
@@ -254,11 +308,18 @@ export function EditableAiGrid({
 
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as
-          | { error?: string }
+          | { error?: string; details?: string }
           | null;
-        setError(body?.error || "Failed to delete row.");
+        reportUserError(formatApiErrorBody(body, "Failed to delete row."));
         return;
       }
+
+      onMutationSuccess?.({
+        type: "delete",
+        keyColumn: effectiveKeyColumn,
+        row: rowSnapshot
+      });
+      onSuccessMessage?.("Row deleted successfully.");
 
       if (editingRowIndex === rowIndex) {
         setEditingRowIndex(null);
@@ -271,7 +332,7 @@ export function EditableAiGrid({
         });
       }
     } catch (e) {
-      setError(
+      reportUserError(
         e instanceof Error ? e.message : "Unexpected error while deleting row."
       );
     }
@@ -309,13 +370,41 @@ export function EditableAiGrid({
     return raw;
   }
 
+  function isBlankTokenFilter(raw: string): boolean {
+    const t = raw.trim().toLowerCase();
+    return t === "(blank)" || t === "[blank]";
+  }
+
   const filteredRows = rows
     .filter((row) => {
-      // Per-column filters
+      if (rowBlankFilter === "any-column-empty") {
+        const cols = visibleColumns.filter((c) => c !== effectiveKeyColumn);
+        const anyEmpty = cols.some(
+          (col) => getCellText(row, col).trim() === ""
+        );
+        if (!anyEmpty) return false;
+      }
+      if (rowBlankFilter === "all-data-empty") {
+        const cols = visibleColumns.filter((c) => c !== effectiveKeyColumn);
+        if (cols.length === 0) return true;
+        const allEmpty = cols.every(
+          (col) => getCellText(row, col).trim() === ""
+        );
+        if (!allEmpty) return false;
+      }
+
       for (const col of visibleColumns) {
-        const colFilter = (columnFilters[col] ?? "").trim().toLowerCase();
-        if (!colFilter) continue;
-        const text = getCellText(row, col).toLowerCase();
+        const rawFilter = (columnFilters[col] ?? "").trim();
+        if (!rawFilter) continue;
+        const colFilter = rawFilter.toLowerCase();
+        const display = getCellText(row, col);
+        const text = display.toLowerCase();
+
+        if (enableBlankTokenFilter && isBlankTokenFilter(rawFilter)) {
+          if (display.trim() !== "") return false;
+          continue;
+        }
+
         if (!text.includes(colFilter)) return false;
       }
 
@@ -403,7 +492,7 @@ export function EditableAiGrid({
                     type="text"
                     value={columnFilters[col] ?? ""}
                     onChange={(e) => updateColumnFilter(col, e.target.value)}
-                    placeholder="Filter..."
+                    placeholder={columnFilterPlaceholder}
                     className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[10px] text-white placeholder:text-slate-500"
                   />
                 </th>
@@ -586,7 +675,7 @@ export function EditableAiGrid({
           </tbody>
         </table>
       </div>
-      {error && (
+      {error && !onErrorMessage && (
         <p className="text-xs text-red-300 max-w-md break-all">{error}</p>
       )}
     </div>

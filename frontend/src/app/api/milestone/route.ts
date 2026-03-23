@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, getDbWithToken } from "@/lib/db";
+import { milestoneDeleteErrorResponse } from "@/lib/sqlDeleteErrors";
 
 function getAccessToken(request: Request): string | null {
   const auth = request.headers.get("authorization");
@@ -128,8 +129,9 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   const token = getAccessToken(request);
+  let pool: Awaited<ReturnType<typeof getDbWithToken>> | null = null;
   try {
-    const pool = token ? await getDbWithToken(token) : await getDb();
+    pool = token ? await getDbWithToken(token) : await getDb();
 
     const payload = (await request.json().catch(() => null)) as
       | {
@@ -152,11 +154,16 @@ export async function DELETE(request: Request) {
     const query = `DELETE FROM dbo.milestone WHERE [${keyColumn}] = @key;`;
 
     await dbRequest.query(query);
-    if (token) await pool.close();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error deleting row.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return milestoneDeleteErrorResponse(error);
+  } finally {
+    if (token && pool) {
+      try {
+        await pool.close();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }

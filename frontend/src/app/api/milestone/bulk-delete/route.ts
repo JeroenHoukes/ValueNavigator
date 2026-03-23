@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDbWithToken } from "@/lib/db";
+import { milestoneDeleteErrorResponse } from "@/lib/sqlDeleteErrors";
 
 function getAccessToken(request: Request): string | null {
   const auth = request.headers.get("authorization");
@@ -43,25 +44,30 @@ export async function POST(request: Request) {
     }
 
     const pool = await getDbWithToken(token);
-    let requestBuilder = pool.request();
+    try {
+      let requestBuilder = pool.request();
 
-    const idParams: string[] = [];
-    ids.forEach((id, index) => {
-      const paramName = `id${index}`;
-      idParams.push(`@${paramName}`);
-      requestBuilder = requestBuilder.input(paramName, id as unknown);
-    });
+      const idParams: string[] = [];
+      ids.forEach((id, index) => {
+        const paramName = `id${index}`;
+        idParams.push(`@${paramName}`);
+        requestBuilder = requestBuilder.input(paramName, id as unknown);
+      });
 
-    const inClause = idParams.join(", ");
-    await requestBuilder.query(
-      `DELETE FROM dbo.milestone WHERE [${keyColumn}] IN (${inClause});`
-    );
+      const inClause = idParams.join(", ");
+      await requestBuilder.query(
+        `DELETE FROM dbo.milestone WHERE [${keyColumn}] IN (${inClause});`
+      );
 
-    await pool.close();
-    return NextResponse.json({ ok: true, deleted: ids.length });
+      return NextResponse.json({ ok: true, deleted: ids.length });
+    } finally {
+      try {
+        await pool.close();
+      } catch {
+        /* ignore */
+      }
+    }
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error in bulk delete.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return milestoneDeleteErrorResponse(error);
   }
 }
