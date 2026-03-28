@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatApiErrorBody } from "@/lib/apiErrorMessage";
 
@@ -36,7 +36,15 @@ type Props = {
       options: { value: string; label: string }[];
     }
   >;
+  /**
+   * When the user picks a select-backed label column, also set the paired FK id column
+   * (often hidden). Maps label column name → id column name. If omitted, LookupName still
+   * syncs to LookupId / LookupID / lookupID when those columns exist.
+   */
+  selectIdBindings?: Record<string, string>;
   hiddenColumns?: string[];
+  /** Shown in the grid but excluded from add-row payload and row edit payload (e.g. computed/join columns). */
+  readOnlyColumns?: string[];
   enableRowSelection?: boolean;
   onSelectionChange?: (selectedIds: unknown[]) => void;
   rowIdColumn?: string;
@@ -51,6 +59,8 @@ type Props = {
   onErrorMessage?: (message: string) => void;
   /** Called after a successful add, update, or delete (for success popups). */
   onSuccessMessage?: (message: string) => void;
+  /** When true, show sort/filter grid only (no add, edit, delete, or actions column). */
+  readOnly?: boolean;
 };
 
 export function EditableAiGrid({
@@ -61,7 +71,9 @@ export function EditableAiGrid({
   keyColumn,
   onDataChanged,
   selectColumns,
+  selectIdBindings,
   hiddenColumns,
+  readOnlyColumns,
   enableRowSelection,
   onSelectionChange,
   rowIdColumn,
@@ -70,7 +82,8 @@ export function EditableAiGrid({
   columnFilterPlaceholder = "Filter...",
   onMutationSuccess,
   onErrorMessage,
-  onSuccessMessage
+  onSuccessMessage,
+  readOnly = false
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -106,14 +119,30 @@ export function EditableAiGrid({
       ? columns.filter((c) => !hiddenColumns.includes(c))
       : columns;
 
-  // Support different possible casing for the lookup ID column.
-  const lookupIdColumn = columns.includes("LookupId")
-    ? "LookupId"
-    : columns.includes("LookupID")
-    ? "LookupID"
-    : columns.includes("lookupID")
-    ? "lookupID"
-    : null;
+  const readOnlySet = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of readOnlyColumns ?? []) s.add(c);
+    return s;
+  }, [readOnlyColumns]);
+
+  const resolvedSelectIdBindings = useMemo(() => {
+    const m: Record<string, string> = { ...(selectIdBindings ?? {}) };
+    const lookupIdCol = columns.includes("LookupId")
+      ? "LookupId"
+      : columns.includes("LookupID")
+        ? "LookupID"
+        : columns.includes("lookupID")
+          ? "lookupID"
+          : null;
+    if (
+      lookupIdCol &&
+      columns.includes("LookupName") &&
+      m["LookupName"] === undefined
+    ) {
+      m["LookupName"] = lookupIdCol;
+    }
+    return m;
+  }, [selectIdBindings, columns]);
 
   const idColumn = rowIdColumn ?? "id";
 
@@ -125,11 +154,8 @@ export function EditableAiGrid({
   function updateCell(column: string, value: string) {
     setNewRow((prev) => {
       const next = { ...prev, [column]: value };
-      // When editing the visible LookupName column, also set the hidden LookupId
-      // so inserts/updates have the correct foreign key.
-      if (column === "LookupName" && lookupIdColumn) {
-        next[lookupIdColumn] = value;
-      }
+      const idCol = resolvedSelectIdBindings[column];
+      if (idCol) next[idCol] = value;
       return next;
     });
   }
@@ -140,6 +166,7 @@ export function EditableAiGrid({
     const values: Record<string, unknown> = {};
     for (const col of columns) {
       if (col === effectiveKeyColumn) continue;
+      if (readOnlySet.has(col)) continue;
       const v = (newRow[col] ?? "").trim();
       if (v !== "") values[col] = v;
     }
@@ -201,9 +228,8 @@ export function EditableAiGrid({
   function updateEditingCell(column: string, value: string) {
     setEditingRow((prev) => {
       const next = { ...prev, [column]: value };
-      if (column === "LookupName" && lookupIdColumn) {
-        next[lookupIdColumn] = value;
-      }
+      const idCol = resolvedSelectIdBindings[column];
+      if (idCol) next[idCol] = value;
       return next;
     });
   }
@@ -226,6 +252,7 @@ export function EditableAiGrid({
     const values: Record<string, unknown> = {};
     for (const col of columns) {
       if (col === effectiveKeyColumn) continue;
+      if (readOnlySet.has(col)) continue;
       const raw = (editingRow[col] ?? "").trim();
       if (raw !== "") values[col] = raw;
     }
@@ -343,14 +370,12 @@ export function EditableAiGrid({
   }
 
   function toggleSort(column: string) {
-    setSortColumn((prev) => {
-      if (prev === column) {
-        setSortDirection((dir) => (dir === "asc" ? "desc" : "asc"));
-        return prev;
-      }
+    if (sortColumn === column) {
+      setSortDirection((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
       setSortDirection("asc");
-      return column;
-    });
+    }
   }
 
   function getCellText(row: TableAiRow, col: string): string {
@@ -466,11 +491,13 @@ export function EditableAiGrid({
                   />
                 </th>
               )}
-              <th
-                className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
-              >
-                Actions
-              </th>
+              {!readOnly && (
+                <th
+                  className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-800"
+                >
+                  Actions
+                </th>
+              )}
               {visibleColumns.map((col) => (
                 <th
                   key={col}
@@ -500,50 +527,54 @@ export function EditableAiGrid({
             </tr>
           </thead>
           <tbody>
-            <tr className="bg-slate-900/60">
-              {enableRowSelection && (
-                <td className="px-3 py-2 border-t border-slate-700 align-top" />
-              )}
-              <td className="px-3 py-2 border-t border-slate-700 align-top">
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isPending}
-                  className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand/90 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isPending ? "Saving..." : "Save"}
-                </button>
-              </td>
-              {visibleColumns.map((col) => (
-                <td
-                  key={col}
-                  className="px-3 py-2 border-t border-slate-700 align-top"
-                >
-                  {selectColumns && selectColumns[col] ? (
-                    <select
-                      value={newRow[col] ?? ""}
-                      onChange={(e) => updateCell(col, e.target.value)}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                    >
-                      <option value="">Select {col}</option>
-                      {selectColumns[col].options.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={newRow[col] ?? ""}
-                      onChange={(e) => updateCell(col, e.target.value)}
-                      placeholder={`New ${col}`}
-                      className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                    />
-                  )}
+            {!readOnly && (
+              <tr className="bg-slate-900/60">
+                {enableRowSelection && (
+                  <td className="px-3 py-2 border-t border-slate-700 align-top" />
+                )}
+                <td className="px-3 py-2 border-t border-slate-700 align-top">
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isPending}
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isPending ? "Saving..." : "Save"}
+                  </button>
                 </td>
-              ))}
-            </tr>
+                {visibleColumns.map((col) => (
+                  <td
+                    key={col}
+                    className="px-3 py-2 border-t border-slate-700 align-top"
+                  >
+                    {readOnlySet.has(col) ? (
+                      <span className="text-slate-600 text-xs">—</span>
+                    ) : selectColumns && selectColumns[col] ? (
+                      <select
+                        value={newRow[col] ?? ""}
+                        onChange={(e) => updateCell(col, e.target.value)}
+                        className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                      >
+                        <option value="">Select {col}</option>
+                        {selectColumns[col].options.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={newRow[col] ?? ""}
+                        onChange={(e) => updateCell(col, e.target.value)}
+                        placeholder={`New ${col}`}
+                        className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white"
+                      />
+                    )}
+                  </td>
+                ))}
+              </tr>
+            )}
             {filteredRows.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
@@ -575,47 +606,49 @@ export function EditableAiGrid({
                     />
                   </td>
                 )}
-                <td className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap">
-                  {editingRowIndex === rowIndex ? (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={saveEdit}
-                        disabled={isPending}
-                        className="rounded bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-500 disabled:opacity-60"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRowIndex(null);
-                          setEditingRow({});
-                        }}
-                        className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(rowIndex)}
-                        className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteRow(rowIndex)}
-                        className="rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </td>
+                {!readOnly && (
+                  <td className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap">
+                    {editingRowIndex === rowIndex ? (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={saveEdit}
+                          disabled={isPending}
+                          className="rounded bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-500 disabled:opacity-60"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRowIndex(null);
+                            setEditingRow({});
+                          }}
+                          className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(rowIndex)}
+                          className="rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteRow(rowIndex)}
+                          className="rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                )}
                 {visibleColumns.map((col) => {
                   const isEditing = editingRowIndex === rowIndex;
                   const value = (row as Record<string, unknown>)[col];
@@ -639,7 +672,9 @@ export function EditableAiGrid({
                       className="px-3 py-2 align-top text-slate-100 border-b border-slate-800/60 whitespace-nowrap"
                     >
                       {isEditing ? (
-                        selectColumns && selectColumns[col] ? (
+                        readOnlySet.has(col) ? (
+                          <span className="text-slate-400 text-xs">{display}</span>
+                        ) : selectColumns && selectColumns[col] ? (
                           <select
                             value={editingRow[col] ?? ""}
                             onChange={(e) =>

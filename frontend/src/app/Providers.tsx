@@ -29,7 +29,9 @@ const overviewItems = [
   { href: "/journeys", label: "Journeys" },
   { href: "/ai-data", label: "AI Data" },
   { href: "/ai-data2", label: "AI Data 2" },
-  { href: "/milestone", label: "Milestones" }
+  { href: "/milestone", label: "Milestones" },
+  { href: "/value-dashboard", label: "Value Dashboard" },
+  { href: "/value-dashboard/table", label: "Value table" }
 ] as const;
 
 function isCreateNewActive(pathname: string) {
@@ -49,6 +51,7 @@ function isOverviewActive(pathname: string) {
     pathname === "/ai-data" ||
     pathname === "/ai-data2" ||
     pathname === "/milestone" ||
+    pathname === "/value-dashboard" ||
     pathname === "/journeys" ||
     pathname === "/journey" ||
     (pathname.startsWith("/scenarios/") &&
@@ -223,7 +226,14 @@ function HeaderAndMain({ children }: { children: ReactNode }) {
           {aiOpen && (
             <AIAssistantPanel onClose={() => setAiOpen(false)} />
           )}
-          <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-4 max-w-6xl mx-auto w-full" style={{ minHeight: 0 }}>
+          <main
+            className={`flex-1 min-h-0 overscroll-contain px-6 py-4 mx-auto w-full ${
+              pathname === "/value-dashboard/table"
+                ? "max-w-[min(100%,92rem)] overflow-y-auto overflow-x-auto"
+                : "max-w-6xl overflow-y-auto overflow-x-hidden"
+            }`}
+            style={{ minHeight: 0 }}
+          >
             {children}
           </main>
         </div>

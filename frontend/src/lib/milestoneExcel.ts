@@ -102,6 +102,26 @@ export function downloadMilestoneExcel(
   XLSX.writeFile(wb, name);
 }
 
+/** Excel export for arbitrary value-dashboard table sources (short sheet name). */
+export function downloadValueTableSourceExcel(
+  rows: Record<string, unknown>[],
+  columnOrder: string[],
+  sourceId: string,
+  filename?: string
+): void {
+  const data = buildMilestoneExportRows(rows, columnOrder);
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  const raw =
+    sourceId.replace(/[\]\[\\/?*]/g, "").slice(0, 31) || "data";
+  const sheetName = raw.length > 0 ? raw : "data";
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  const name =
+    filename ??
+    `${sourceId}_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, name);
+}
+
 export function parseMilestoneWorkbook(buffer: ArrayBuffer): {
   rows: Record<string, unknown>[];
   error?: string;

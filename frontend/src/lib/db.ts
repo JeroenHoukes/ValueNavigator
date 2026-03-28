@@ -67,7 +67,9 @@ export async function getDbWithToken(accessToken: string): Promise<sql.Connectio
       encrypt: true,
       trustServerCertificate: false
     },
-    pool: { max: 1, min: 0, idleTimeoutMillis: 30000 }
+    // max > 1 avoids "Connection is closed" when a handler runs multiple
+    // sequential requests on the same token-scoped pool.
+    pool: { max: 5, min: 0, idleTimeoutMillis: 30000 }
   };
   return sql.connect(configWithToken as sql.config);
 }
